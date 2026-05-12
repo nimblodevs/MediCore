@@ -53,15 +53,15 @@ const Sidebar = ({
   }
 
   return (
-    <aside className="flex h-dvh w-full shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white text-slate-900 shadow-sm lg:h-screen lg:w-72">
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
+    <aside className="flex h-dvh w-full shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-gradient-to-b from-white to-slate-50/30 text-slate-900 shadow-sm lg:h-screen lg:w-72">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-cyan-50/50 to-transparent px-4 py-4">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-cyan-600 text-white shadow-sm shadow-cyan-900/10">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-600 to-cyan-500 text-white shadow-lg shadow-cyan-500/25">
             <Home size={20} strokeWidth={2.4} />
           </div>
           <div className="min-w-0">
             <p className="truncate text-base font-bold tracking-tight">MediCore</p>
-            <p className="truncate text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500">
+            <p className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
               HMS v3.0
             </p>
           </div>
@@ -71,30 +71,30 @@ const Sidebar = ({
             type="button"
             aria-label="Close sidebar"
             onClick={onClose}
-            className="inline-flex size-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-cyan-500/25"
+            className="inline-flex size-9 items-center justify-center rounded-lg text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-cyan-500/25"
           >
             <X size={18} />
           </button>
         )}
       </div>
 
-      <div className="border-b border-slate-200 px-4 py-4">
-        <div className="rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-3">
+      <div className="border-b border-slate-200 bg-gradient-to-r from-cyan-50/30 to-transparent px-4 py-4">
+        <div className="overflow-hidden rounded-xl border border-cyan-200 bg-gradient-to-br from-cyan-50 to-white px-3 py-3 shadow-sm">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-700">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-700">
               MFL 13104
             </p>
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+            <span className="rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
               Online
             </span>
           </div>
-          <p className="mt-1 text-sm font-semibold text-slate-800">Nairobi, Kenya</p>
+          <p className="mt-1 text-sm font-bold text-slate-800">Nairobi, Kenya</p>
           <p className="mt-1 text-xs text-slate-500">General outpatient facility</p>
         </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+        <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
           Modules
         </p>
         <div className="space-y-1">
@@ -110,21 +110,21 @@ const Sidebar = ({
                   type="button"
                   onClick={() => handleNav(item.key)}
                   className={[
-                    'group relative flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-cyan-500/20',
+                    'group relative flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-cyan-500/20',
                     active
-                      ? 'bg-cyan-50 font-semibold text-cyan-800 shadow-xs'
-                      : 'font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-950',
+                      ? 'bg-gradient-to-r from-cyan-50 to-cyan-100/50 font-bold text-cyan-800 shadow-md'
+                      : 'font-medium text-slate-600 hover:bg-gradient-to-r hover:from-slate-50 hover:to-slate-100 hover:text-slate-950',
                   ].join(' ')}
                 >
                   {active && (
-                    <span className="absolute left-0 top-2 h-7 w-1 rounded-r-full bg-cyan-600" />
+                    <span className="absolute left-0 top-1.5 h-8 w-1 rounded-r-full bg-gradient-to-b from-cyan-600 to-cyan-500" />
                   )}
                   <span
                     className={[
-                      'flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors',
+                      'flex size-8 shrink-0 items-center justify-center rounded-lg transition-all duration-200',
                       active
-                        ? 'bg-cyan-600 text-white'
-                        : 'bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-slate-800',
+                        ? 'bg-gradient-to-br from-cyan-600 to-cyan-500 text-white shadow-md shadow-cyan-500/25'
+                        : 'bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-slate-800 group-hover:shadow-sm',
                     ].join(' ')}
                   >
                     <Icon size={17} />
@@ -133,8 +133,8 @@ const Sidebar = ({
                   {item.badge > 0 && (
                     <span
                       className={[
-                        'min-w-6 rounded-full px-2 py-0.5 text-center text-xs font-semibold',
-                        active ? 'bg-cyan-600 text-white' : 'bg-slate-200 text-slate-700',
+                        'min-w-6 rounded-full px-2 py-0.5 text-center text-xs font-bold',
+                        active ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 text-white shadow-sm' : 'bg-slate-200 text-slate-700',
                       ].join(' ')}
                     >
                       {item.badge}
@@ -144,7 +144,7 @@ const Sidebar = ({
                     <ChevronDown
                       size={15}
                       className={[
-                        'shrink-0 transition-transform',
+                        'shrink-0 transition-all duration-200',
                         active ? 'rotate-180 text-cyan-700' : 'text-slate-300',
                       ].join(' ')}
                     />
@@ -152,7 +152,7 @@ const Sidebar = ({
                     <ChevronRight
                       size={15}
                       className={[
-                        'shrink-0 transition-opacity',
+                        'shrink-0 transition-all duration-200',
                         active
                           ? 'text-cyan-700 opacity-100'
                           : 'text-slate-300 opacity-0 group-hover:opacity-100',
@@ -162,7 +162,7 @@ const Sidebar = ({
                 </button>
 
                 {hasChildren && active && (
-                  <div className="ml-6 mt-1 space-y-1 border-l border-cyan-100 pl-3">
+                  <div className="ml-6 mt-1 space-y-1 border-l-2 border-cyan-200 pl-3">
                     {item.children.map((child) => {
                       const childSelected = currentKey === child.key
                       const ChildIcon = child.icon
@@ -173,9 +173,9 @@ const Sidebar = ({
                           type="button"
                           onClick={() => handleNav(child.key)}
                           className={[
-                            'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-cyan-500/20',
+                            'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-cyan-500/20',
                             childSelected
-                              ? 'bg-white font-semibold text-cyan-800 shadow-xs ring-1 ring-cyan-100'
+                              ? 'bg-white font-bold text-cyan-800 shadow-md ring-1 ring-cyan-200'
                               : 'font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-900',
                           ].join(' ')}
                         >
@@ -192,21 +192,21 @@ const Sidebar = ({
         </div>
       </nav>
 
-      <div className="border-t border-slate-200 bg-slate-50/80 p-3">
-        <div className="mb-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
-          <p className="truncate text-sm font-semibold text-slate-900">Night shift</p>
+      <div className="border-t border-slate-200 bg-gradient-to-r from-slate-50/80 to-white p-3">
+        <div className="mb-2 overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-3 py-2 shadow-sm">
+          <p className="truncate text-sm font-bold text-slate-900">Night shift</p>
           <p className="mt-0.5 truncate text-xs text-slate-500">12 active staff on duty</p>
         </div>
         <button
           type="button"
-          className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium text-slate-600 transition-colors hover:bg-white hover:text-slate-950 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-cyan-500/20"
+          className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-600 transition-all duration-200 hover:bg-white hover:text-slate-950 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-cyan-500/20"
         >
           <Settings size={18} />
           <span className="min-w-0 flex-1 truncate text-left">Settings</span>
         </button>
         <button
           type="button"
-          className="mt-1 flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium text-slate-600 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-red-500/15"
+          className="mt-1 flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-600 transition-all duration-200 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-red-500/15"
         >
           <LogOut size={18} />
           <span className="min-w-0 flex-1 truncate text-left">Sign out</span>
