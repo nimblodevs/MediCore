@@ -15,6 +15,8 @@ import {
   User,
   Users,
   UserRound,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 
 import Input from "../../components/ui/Input";
@@ -25,22 +27,32 @@ import {
 } from "../../utils/kenyaLocations";
 
 const fieldClasses =
-  "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-xs transition-colors focus:border-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-600/10";
+  "h-11 w-full rounded-lg border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-sm transition-all duration-200 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-4 focus:ring-cyan-500/15 hover:border-slate-300 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400";
 
-const Section = ({ title, description, icon: Icon, children }) => (
-  <section className="rounded-xl border border-slate-200 bg-white shadow-xs">
-    <div className="border-b border-slate-200 px-4 py-3 sm:px-5">
-      <div className="flex items-start gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700">
+const Section = ({ title, description, icon: Icon, children, variant = "default" }) => (
+  <section 
+    className={`group relative overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-300 hover:shadow-md ${
+      variant === "highlighted" 
+        ? "border-cyan-200 ring-1 ring-cyan-100" 
+        : "border-slate-200"
+    }`}
+  >
+    <div className={`px-5 py-4 sm:px-6 ${variant === "highlighted" ? "bg-gradient-to-r from-cyan-50/80 to-transparent" : "border-b border-slate-100"}`}>
+      <div className="flex items-start gap-3.5">
+        <span className={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
+          variant === "highlighted"
+            ? "bg-gradient-to-br from-cyan-500 to-cyan-600 text-white shadow-md shadow-cyan-500/20"
+            : "bg-gradient-to-br from-slate-50 to-slate-100 text-slate-600 group-hover:from-cyan-50 group-hover:to-cyan-100 group-hover:text-cyan-600"
+        }`}>
           <Icon className="size-5" />
         </span>
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold text-slate-950">{title}</h2>
-          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        <div className="min-w-0 flex-1 pt-0.5">
+          <h2 className="text-lg font-bold tracking-tight text-slate-900">{title}</h2>
+          <p className="mt-1 text-sm leading-relaxed text-slate-500">{description}</p>
         </div>
       </div>
     </div>
-    <div className="grid gap-2 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+    <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
       {children}
     </div>
   </section>
@@ -55,18 +67,21 @@ const SelectField = ({
   disabled = false,
   leftIcon: Icon,
   containerClassName = "",
+  required = false,
+  error,
 }) => (
   <div className={["w-full", containerClassName].join(" ")}>
     <label
       htmlFor={id}
-      className="mb-1.5 block text-sm font-semibold text-slate-800"
+      className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-slate-700"
     >
       {label}
+      {required && <span className="text-xs text-red-500">*</span>}
     </label>
 
     <div className="relative">
       {Icon ? (
-        <Icon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+        <Icon className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-cyan-500" />
       ) : null}
 
       <select
@@ -74,13 +89,29 @@ const SelectField = ({
         value={value}
         disabled={disabled}
         onChange={onChange}
-        className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-xs transition-colors focus:border-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-600/10 ${
-          Icon ? "pl-10" : ""
-        } ${disabled ? "cursor-not-allowed bg-slate-100 text-slate-500" : ""}`}
+        className={`${fieldClasses} appearance-none cursor-pointer ${
+          Icon ? "pl-10.5" : ""
+        } ${disabled ? "cursor-not-allowed bg-slate-50 text-slate-400" : ""} ${
+          error ? "border-red-300 focus:border-red-400 focus:ring-red-500/15" : ""
+        }`}
       >
         {children}
       </select>
+      
+      {/* Custom dropdown arrow */}
+      <span className="pointer-events-none absolute right-3.5 top-1/2 flex -translate-y-1/2 items-center text-slate-400">
+        <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </span>
     </div>
+    
+    {error && (
+      <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-red-600">
+        <AlertCircle className="size-3" />
+        {error}
+      </p>
+    )}
   </div>
 );
 
@@ -95,17 +126,20 @@ const TextareaField = ({
   leftIcon: LeftIcon,
   value,
   onChange,
+  error,
+  required = false,
 }) => (
   <div className={className}>
     <label
       htmlFor={id}
-      className="mb-1.5 block text-sm font-semibold text-slate-800"
+      className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-slate-700"
     >
       {label}
+      {required && <span className="text-xs text-red-500">*</span>}
     </label>
     <div className="relative">
       {LeftIcon ? (
-        <span className="pointer-events-none absolute inset-y-0 left-3 flex items-start pt-2.5 text-slate-400">
+        <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-start pt-2.5 text-slate-400 transition-colors group-focus-within:text-cyan-500">
           <LeftIcon className="size-4" />
         </span>
       ) : null}
@@ -116,20 +150,28 @@ const TextareaField = ({
         value={value}
         onChange={onChange}
         className={`${fieldClasses} ${
-          compact ? "min-h-16" : "min-h-20"
-        } resize-y py-2 ${LeftIcon ? "pl-9" : ""}`}
+          compact ? "min-h-[72px]" : "min-h-[88px]"
+        } resize-y py-2.5 ${LeftIcon ? "pl-10" : ""} ${
+          error ? "border-red-300 focus:border-red-400 focus:ring-red-500/15" : ""
+        }`}
       />
     </div>
+    {error && (
+      <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-red-600">
+        <AlertCircle className="size-3" />
+        {error}
+      </p>
+    )}
   </div>
 );
 
 // Reusable comments field used at the end of most sections.
-const CommentField = ({ id }) => (
+const CommentField = ({ id, label = "Additional Comments" }) => (
   <TextareaField
     id={id}
-    label="Comments"
-    placeholder="Add relevant notes or special considerations"
-    className="sm:col-span-2 xl:col-span-2"
+    label={label}
+    placeholder="Add relevant notes or special considerations..."
+    className="sm:col-span-2 xl:col-span-3"
     compact
     leftIcon={FileText}
   />
@@ -191,32 +233,38 @@ const PatientRegistration = () => {
     : `${idType} number`;
 
   return (
-    <form className="space-y-4">
+    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header: search and nationality context before data entry starts. */}
-      <div className="rounded-xl border border-cyan-100 bg-cyan-50 px-4 py-3 sm:px-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="mt-1 text-xl font-semibold text-slate-950">
-              Patient Registration Form
-            </h1>
-            <p className="mt-1 max-w-3xl text-sm text-slate-600">
-              Capture demographic, contact, next of kin, emergency, and
-              residence details for a new patient record.
+      <div className="relative overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-r from-cyan-50 via-white to-cyan-50/50 px-6 py-5 shadow-sm sm:px-8">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-cyan-100/40 via-transparent to-transparent" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2.5">
+              <span className="flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-600 text-white shadow-md shadow-cyan-500/25">
+                <UserRound className="size-6" />
+              </span>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                Patient Registration
+              </h1>
+            </div>
+            <p className="mt-2.5 text-sm leading-relaxed text-slate-600">
+              Capture demographic, contact, next of kin, emergency, and residence details for a new patient record. 
+              All fields marked with <span className="text-red-500">*</span> are required.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-xl bg-white/80 p-3 shadow-xs ring-1 ring-cyan-100 lg:flex-row lg:items-end">
+          <div className="flex flex-col gap-3 rounded-xl bg-white/90 p-3.5 shadow-sm ring-1 ring-cyan-100 backdrop-blur-sm lg:flex-row lg:items-end">
             <div className="min-w-0 flex-1">
               <Input
-                label="Search Patient"
-                placeholder="e.g. Otieno"
+                label="Search Existing Patient"
+                placeholder="Search by name or ID..."
                 autoComplete="off"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 leftIcon={<Search className="size-4" />}
               />
             </div>
-            <div className="w-full lg:w-52">
+            <div className="w-full lg:w-44">
               <SelectField
                 id="patient-type"
                 label="Patient Type"
@@ -747,24 +795,31 @@ const PatientRegistration = () => {
         <CommentField id="administrative-comments" />
       </Section>
 
-      {/* Footer actions: kept sticky so save and submit remain visible. */}
-      <div className="sticky bottom-0 z-10 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur sm:-mx-6 sm:px-6">
-        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/10"
-          >
-            Save draft
-          </button>
-          <button
-            type="submit"
-            className="h-10 rounded-lg bg-cyan-600 px-4 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-cyan-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-600/20"
-          >
-            Register patient
-          </button>
+      {/* Footer actions: kept sticky so clear and submit remain visible. */}
+      <div className="sticky bottom-0 z-10 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-4 shadow-lg backdrop-blur sm:-mx-6 sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate-500">
+            <span className="text-red-500">*</span> Required fields
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              className="group flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition-all duration-200 hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/10"
+            >
+              <FileText className="size-4 text-slate-400 transition-colors group-hover:text-red-500" />
+              Clear details
+            </button>
+            <button
+              type="submit"
+              className="group flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 px-5 text-sm font-semibold text-white shadow-md shadow-cyan-500/25 transition-all duration-200 hover:from-cyan-700 hover:to-cyan-600 hover:shadow-lg hover:shadow-cyan-500/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-500/25"
+            >
+              <CheckCircle2 className="size-4" />
+              Register Patient
+            </button>
+          </div>
         </div>
       </div>
-    </form>
+    </div>
   );
 };
 
