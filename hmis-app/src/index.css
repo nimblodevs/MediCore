@@ -1,0 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: 'Outfit', sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-white text-slate-950;
+  }
+
+  html {
+    @apply font-sans;
+  }
+}
