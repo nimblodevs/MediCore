@@ -40,7 +40,7 @@ const Section = ({ title, description, icon: Icon, children }) => (
         </div>
       </div>
     </div>
-    <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+    <div className="grid gap-2 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
       {children}
     </div>
   </section>
@@ -197,7 +197,7 @@ const PatientRegistration = () => {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="mt-1 text-xl font-semibold text-slate-950">
-              Patient Registration
+              Patient Registration Form
             </h1>
             <p className="mt-1 max-w-3xl text-sm text-slate-600">
               Capture demographic, contact, next of kin, emergency, and
@@ -248,13 +248,11 @@ const PatientRegistration = () => {
           placeholder="MRN0002564"
           autoComplete="patient-number"
           leftIcon={<IdCard className="size-4" />}
-          containerClassName="max-w-78"
         />
         <SelectField
           id="title"
           label="Name Prefix (Title)"
           leftIcon={UserRound}
-          containerClassName="max-w-40"
         >
           <option value="">-- Select Title --</option>
           <option value="Mr">Mr.</option>
@@ -286,7 +284,6 @@ const PatientRegistration = () => {
           placeholder="e.g. Otieno"
           autoComplete="family-name"
           leftIcon={<User className="size-4" />}
-          containerClassName="max-w-78"
         />
         <Input
           label="First Name / Given Name"
