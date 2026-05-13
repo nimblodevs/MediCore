@@ -5,31 +5,39 @@ node_modules/
 # Build artifacts
 dist/
 build/
-*.js.map
-
-# Environment
-.env
-.env.local
-*.env.*
-
-# Editors
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Logs
-*.log
+target/
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.py~
+*.py.class
+venv/
+.venv/
+.env
+.env.local
+.env.*
 
-# Temp files
+# Compiled files
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+*.out
+
+# Logs and temp files
+*.log
 *.tmp
-*.temp
+*.swp
+*.swo
+
+# Editors
+.vscode/
+.idea/
 
 # OS
 .DS_Store
@@ -43,5 +51,5 @@ htmlcov/
 # Cache
 .mypy_cache/
 .pytest_cache/
-.cache/
+.gradle/
 ```
