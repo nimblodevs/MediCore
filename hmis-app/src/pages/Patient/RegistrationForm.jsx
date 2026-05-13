@@ -652,6 +652,7 @@ const PatientRegistration = () => {
           label="Age Group"
           placeholder="Age group"
           //value={ageGroup}
+          //onChange={(e) => setAgeGroup(e.target.value)}
           readOnly
           inputClassName="bg-slate-50 font-semibold max-w-38"
         />
