@@ -2,12 +2,14 @@ import { useState } from 'react'
 import Navbar from './components/Navbar.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import PatientRegistration from './pages/Patient/RegistrationForm.jsx'
+import DebtorsPage from './pages/Debtors/DebtorsPage.jsx'
 
 
 const HMS = () => {
   const [activeSection, setActiveSection] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const showPatientRegistration = activeSection === 'patient-registration'
+  const showDebtorsPage = activeSection === 'debtors'
 
   return (
     <div className="min-h-screen bg-slate-50 lg:flex">
@@ -42,6 +44,8 @@ const HMS = () => {
         <section className="p-4 sm:p-6">
           {showPatientRegistration ? (
             <PatientRegistration />
+          ) : showDebtorsPage ? (
+            <DebtorsPage />
           ) : (
             <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
               <p className="text-sm font-medium uppercase tracking-[0.14em] text-slate-400">
