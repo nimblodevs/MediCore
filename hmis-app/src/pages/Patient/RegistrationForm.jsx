@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import Input from "../../components/ui/Input";
+import Tabs from "../../components/ui/Tabs";
 import {
   getCounties,
   getSubCounties,
@@ -187,6 +188,16 @@ const PatientRegistration = () => {
   const [subCounty, setSubCounty] = useState("");
   const [isSuspended, setIsSuspended] = useState(false);
   const [suspensionReason, setSuspensionReason] = useState("");
+  const [activeTab, setActiveTab] = useState("demography");
+
+  const tabs = [
+    { id: "demography", label: "Demography", icon: IdCard },
+    { id: "contact", label: "Contact Details", icon: Phone },
+    { id: "nextOfKin", label: "Next of Kin", icon: Users },
+    { id: "emergency", label: "Emergency Contact", icon: ContactRound },
+    { id: "residence", label: "Residence", icon: MapPin },
+    { id: "administrative", label: "Administrative", icon: BriefcaseMedical },
+  ];
 
   const approximateAge = useMemo(() => {
     if (!dateOfBirth) {
@@ -285,7 +296,11 @@ const PatientRegistration = () => {
         </div>
       </div>
 
+      {/* Tabs for form sections */}
+      <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+
       {/* Demography: core identity and document details. */}
+      {activeTab === "demography" && (
       <Section
         title="Demography"
         description="Core identity information used for patient matching and statutory reporting."
@@ -526,8 +541,10 @@ const PatientRegistration = () => {
         </SelectField>
         <CommentField id="demography-comments" />
       </Section>
+      )}
 
       {/* Contact Details: patient communication channels. */}
+      {activeTab === "contact" && (
       <Section
         title="Contact Details"
         description="Primary channels the hospital can use for communication and follow-up."
@@ -553,8 +570,10 @@ const PatientRegistration = () => {
         />
         <CommentField id="contact-comments" />
       </Section>
+      )}
 
       {/* Next of Kin: primary family or guardian contact. */}
+      {activeTab === "nextOfKin" && (
       <Section
         title="Next of Kin Details"
         description="Preferred next of kin for consent, updates, and care coordination."
@@ -630,8 +649,10 @@ const PatientRegistration = () => {
           leftIcon={<Mail className="size-4" />}
         />
       </Section>
+      )}
 
       {/* Emergency Contact: used for urgent escalation. */}
+      {activeTab === "emergency" && (
       <Section
         title="Emergency Contact Details"
         description="Person to contact immediately during critical incidents."
@@ -686,8 +707,10 @@ const PatientRegistration = () => {
           leftIcon={<Phone className="size-4" />}
         />
       </Section>
+      )}
 
       {/* Residence Details and physical address information. */}
+      {activeTab === "residence" && (
       <Section
         title="Residence Details"
         description="Kenyan administrative location and physical residence details."
@@ -750,8 +773,10 @@ const PatientRegistration = () => {
           leftIcon={<MapPin className="size-4" />}
         />
       </Section>
+      )}
 
       {/* Administrative Details: registration metadata used by the facility. */}
+      {activeTab === "administrative" && (
       <Section
         title="Administrative Details"
         description="Facility-facing registration metadata for patient tracking."
@@ -794,6 +819,7 @@ const PatientRegistration = () => {
         </div>
         <CommentField id="administrative-comments" />
       </Section>
+      )}
 
       {/* Footer actions: kept sticky so clear and submit remain visible. */}
       <div className="sticky bottom-0 z-10 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-4 shadow-lg backdrop-blur sm:-mx-6 sm:px-6">
