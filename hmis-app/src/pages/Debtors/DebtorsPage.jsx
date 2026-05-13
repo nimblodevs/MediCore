@@ -1,9 +1,122 @@
 import { useState } from 'react'
-import { Search, Filter, Download, Eye, Edit, Trash2, Phone, Mail, MapPin, Calendar, DollarSign, AlertCircle } from 'lucide-react'
+import { Search, Filter, Download, Eye, Edit, Trash2, Phone, Mail, MapPin, Calendar, DollarSign, AlertCircle, Building, FileText, LayoutList, Settings } from 'lucide-react'
+import SchemeManagement from '../../components/SchemeManagement'
 
 const DebtorsPage = () => {
+  const [activeTab, setActiveTab] = useState('debtors')
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
+  const [selectedCompany, setSelectedCompany] = useState('')
+  const [selectedScheme, setSelectedScheme] = useState('')
+  
+  // Sample companies data
+  const [companies] = useState([
+    { id: 'CMP001', name: 'ABC Insurance Ltd' },
+    { id: 'CMP002', name: 'XYZ Corporate Services' },
+    { id: 'CMP003', name: 'National Health Fund' },
+    { id: 'CMP004', name: 'Private Medical Scheme' },
+  ])
+  
+  // Sample schemes data with copayment configurations
+  const [schemes, setSchemes] = useState([
+    { 
+      id: 'SCH001', 
+      name: 'Basic Health Cover', 
+      companyId: 'CMP001',
+      description: 'Basic coverage with percentage copayment',
+      copaymentType: 'percentage_global',
+      copaymentValue: 10,
+      isActive: true,
+      servicePointCopayments: []
+    },
+    { 
+      id: 'SCH002', 
+      name: 'Premium Health Plan', 
+      companyId: 'CMP001',
+      description: 'Premium plan with fixed copayment',
+      copaymentType: 'fixed_global',
+      copaymentValue: 500,
+      isActive: true,
+      servicePointCopayments: []
+    },
+    { 
+      id: 'SCH003', 
+      name: 'Corporate Employee Plan', 
+      companyId: 'CMP002',
+      description: 'Different copayments per service point',
+      copaymentType: 'percentage_per_service',
+      copaymentValue: null,
+      isActive: true,
+      servicePointCopayments: [
+        { servicePointId: 'consultation', type: 'percentage', value: 5 },
+        { servicePointId: 'laboratory', type: 'percentage', value: 15 },
+        { servicePointId: 'pharmacy', type: 'fixed', value: 200 }
+      ]
+    },
+    { 
+      id: 'SCH004', 
+      name: 'Executive Medical', 
+      companyId: 'CMP002',
+      description: 'Mixed copayment categories',
+      copaymentType: 'mixed',
+      copaymentValue: null,
+      isActive: true,
+      servicePointCopayments: [
+        { servicePointId: 'consultation', type: 'fixed', value: 1000 },
+        { servicePointId: 'surgery', type: 'percentage', value: 20 },
+        { servicePointId: 'inpatient', type: 'percentage', value: 10 }
+      ]
+    },
+    { 
+      id: 'SCH005', 
+      name: 'NHIF Standard', 
+      companyId: 'CMP003',
+      description: 'Standard NHIF coverage',
+      copaymentType: 'fixed_global',
+      copaymentValue: 300,
+      isActive: true,
+      servicePointCopayments: []
+    },
+    { 
+      id: 'SCH006', 
+      name: 'NHIF Super Cover', 
+      companyId: 'CMP003',
+      description: 'Enhanced NHIF with selective copayments',
+      copaymentType: 'fixed_per_service',
+      copaymentValue: null,
+      isActive: true,
+      servicePointCopayments: [
+        { servicePointId: 'consultation', type: 'fixed', value: 100 },
+        { servicePointId: 'radiology', type: 'fixed', value: 500 },
+        { servicePointId: 'laboratory', type: 'fixed', value: 300 }
+      ]
+    },
+    { 
+      id: 'SCH007', 
+      name: 'Individual Plan', 
+      companyId: 'CMP004',
+      description: 'Individual coverage plan',
+      copaymentType: 'percentage_global',
+      copaymentValue: 15,
+      isActive: true,
+      servicePointCopayments: []
+    },
+    { 
+      id: 'SCH008', 
+      name: 'Family Plan', 
+      companyId: 'CMP004',
+      description: 'Family coverage with mixed copayments',
+      copaymentType: 'mixed',
+      copaymentValue: null,
+      isActive: false,
+      servicePointCopayments: [
+        { servicePointId: 'consultation', type: 'fixed', value: 500 },
+        { servicePointId: 'pharmacy', type: 'percentage', value: 10 },
+        { servicePointId: 'laboratory', type: 'fixed', value: 250 }
+      ]
+    },
+  ])
+  
   const [debtors] = useState([
     {
       id: 'DBT001',
@@ -116,19 +229,63 @@ const DebtorsPage = () => {
     }).format(amount)
   }
 
+  const handleAddScheme = (newScheme) => {
+    const schemeId = `SCH${String(schemes.length + 1).padStart(3, '0')}`
+    setSchemes(prev => [...prev, { ...newScheme, id: schemeId }])
+  }
+
+  const handleUpdateScheme = (schemeId, updatedScheme) => {
+    setSchemes(prev => prev.map(scheme => 
+      scheme.id === schemeId ? { ...updatedScheme, id: schemeId } : scheme
+    ))
+  }
+
+  const handleDeleteScheme = (schemeId) => {
+    setSchemes(prev => prev.filter(scheme => scheme.id !== schemeId))
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Debtors Management</h1>
-          <p className="mt-1 text-sm text-slate-500">Track and manage outstanding patient payments</p>
-        </div>
-        <button className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-600 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-cyan-500/25 transition-all hover:from-cyan-700 hover:to-cyan-600 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-cyan-500/25">
-          <Download size={18} />
-          Export Report
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab('debtors')}
+          className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+            activeTab === 'debtors'
+              ? 'border-b-2 border-cyan-600 text-cyan-600'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <AlertCircle size={18} />
+          Debtors
+        </button>
+        <button
+          onClick={() => setActiveTab('schemes')}
+          className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+            activeTab === 'schemes'
+              ? 'border-b-2 border-cyan-600 text-cyan-600'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Settings size={18} />
+          Scheme Management
         </button>
       </div>
+
+      {/* Content based on active tab */}
+      {activeTab === 'debtors' ? (
+        <>
+          {/* Header */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Debtors Management</h1>
+              <p className="mt-1 text-sm text-slate-500">Track and manage outstanding patient payments</p>
+            </div>
+            <button className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-600 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-cyan-500/25 transition-all hover:from-cyan-700 hover:to-cyan-600 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-cyan-500/25">
+              <Download size={18} />
+              Export Report
+            </button>
+          </div>
 
       {/* Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -194,7 +351,45 @@ const DebtorsPage = () => {
               className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:bg-white focus:outline-none focus:ring-3 focus:ring-cyan-500/20"
             />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Company Dropdown */}
+            <div className="flex items-center gap-2">
+              <Building size={18} className="text-slate-400" />
+              <select
+                value={selectedCompany}
+                onChange={(e) => setSelectedCompany(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:border-cyan-500 focus:bg-white focus:outline-none focus:ring-3 focus:ring-cyan-500/20"
+              >
+                <option value="">All Companies</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            {/* Scheme Dropdown */}
+            <div className="flex items-center gap-2">
+              <FileText size={18} className="text-slate-400" />
+              <select
+                value={selectedScheme}
+                onChange={(e) => setSelectedScheme(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:border-cyan-500 focus:bg-white focus:outline-none focus:ring-3 focus:ring-cyan-500/20"
+                disabled={!selectedCompany}
+              >
+                <option value="">All Schemes</option>
+                {schemes
+                  .filter((scheme) => !selectedCompany || scheme.companyId === selectedCompany)
+                  .map((scheme) => (
+                    <option key={scheme.id} value={scheme.id}>
+                      {scheme.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            
+            {/* Status Filter */}
             <div className="flex items-center gap-2">
               <Filter size={18} className="text-slate-400" />
               <select
@@ -310,6 +505,17 @@ const DebtorsPage = () => {
           </div>
         )}
       </div>
+        </>
+      ) : (
+        /* Scheme Management Tab */
+        <SchemeManagement
+          companies={companies}
+          schemes={schemes}
+          onAddScheme={handleAddScheme}
+          onUpdateScheme={handleUpdateScheme}
+          onDeleteScheme={handleDeleteScheme}
+        />
+      )}
     </div>
   )
 }

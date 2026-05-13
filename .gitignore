@@ -12,44 +12,49 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.py~
-*.py.class
+.Python
+env/
 venv/
 .venv/
-.env
-.env.local
-.env.*
-
-# Compiled files
-*.o
-*.obj
-*.so
-*.a
-*.dll
-*.exe
-*.out
-
-# Logs and temp files
+.ENV
+.python-version
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
 *.log
 *.tmp
-*.swp
-*.swo
+
+# Environment
+.env
+.env.local
+*.env
 
 # Editors
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# OS
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+
+# Logs
+*.log
 
 # Coverage
 coverage/
 htmlcov/
 .coverage
-
-# Cache
-.mypy_cache/
-.pytest_cache/
-.gradle/
 ```
