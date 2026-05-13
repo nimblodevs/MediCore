@@ -8,6 +8,7 @@ const Input = forwardRef(
     {
       id,
       label,
+      required = false,
       helperText,
       error,
       leftIcon,
@@ -32,6 +33,7 @@ const Input = forwardRef(
             className="mb-1.5 block text-sm font-semibold text-slate-800"
           >
             {label}
+            {required ? <span className="ml-0.5 text-rose-600">*</span> : null}
           </label>
         )}
 
