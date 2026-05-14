@@ -46,7 +46,8 @@ import {
 // ============================================
 
 /** Kenyan phone numbers: optional +254 / 0 prefix, then 7 or 1 + 8 digits. */
-const KE_PHONE_REGEX = /^(?:\+?254|0)?[17]\d{8}$/;
+const KE_PHONE_REGEX = (phone) =>
+  /^(\+?254|0)[17]\d{8}$/.test(phone.replace(/\s/g, ""));
 /** Loose ID number: 4-20 alphanumeric chars (covers National ID, Passport, etc.). */
 const ID_NUMBER_REGEX = /^[A-Za-z0-9-]{4,20}$/;
 /** Names: letters, spaces, hyphens, apostrophes. */
@@ -429,6 +430,24 @@ const PatientRegistration = () => {
     }`;
   }, [dateOfBirth]);
 
+  const ageGroup = useMemo(() => {
+    if (!dateOfBirth) return "";
+    const birth = new Date(`${dateOfBirth}T00:00:00`);
+    if (Number.isNaN(birth.getTime())) return "";
+    const today = new Date();
+    let years = today.getFullYear() - birth.getFullYear();
+    const md = today.getMonth() - birth.getMonth();
+    if (md < 0 || (md === 0 && today.getDate() < birth.getDate())) years -= 1;
+    years = Math.max(years, 0);
+    if (years < 1) return "Neonate / Infant (<1 yr)";
+    if (years < 5) return "Child (1–4 yrs)";
+    if (years < 13) return "Child (5–12 yrs)";
+    if (years < 18) return "Adolescent (13–17 yrs)";
+    if (years < 35) return "Young Adult (18–34 yrs)";
+    if (years < 60) return "Adult (35–59 yrs)";
+    return "Senior (60+ yrs)";
+  }, [dateOfBirth]);
+
   const isKenyan = patienttype === "Kenyan";
   const identificationOptions = isKenyan
     ? ["National ID", "Military ID", "Birth Certificate", "Passport No."]
@@ -518,24 +537,85 @@ const PatientRegistration = () => {
   const markTouched = (field) => () =>
     setTouched((prev) => (prev[field] ? prev : { ...prev, [field]: true }));
 
-  // ============================================
+  // ─────────────────────────────────────────────────────────
   // SIDE EFFECTS
-  // ============================================
+  // ─────────────────────────────────────────────────────────
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), 350);
     return () => clearTimeout(t);
   }, [searchTerm]);
 
-  // ============================================
-  // API QUERIES & MUTATIONS
-  // ============================================
+  /** Reactive NOK → Emergency sync */
+  useEffect(() => {
+    if (!sameAsNok) return;
+    setEmergencyName(
+      [nokFirstName, nokOtherName, nokSurname].filter(Boolean).join(" ")
+    );
+    setEmergencyRelationship(nokRelationship);
+    setEmergencyPhone(nokPhone);
+    setAlternateEmergencyPhone("");
+  }, [
+    sameAsNok,
+    nokFirstName,
+    nokOtherName,
+    nokSurname,
+    nokRelationship,
+    nokPhone,
+  ]);
 
+  // ─────────────────────────────────────────────────────────
+  // API
+  // ─────────────────────────────────────────────────────────
+
+  /** Patient search – toast on query-level failure */
   const { data: searchResults = [] } = useQuery({
     queryKey: ["patient-search", debouncedSearchTerm],
     queryFn: () => searchPatients(debouncedSearchTerm),
     enabled: Boolean(debouncedSearchTerm.trim()),
+    onError: (err) => {
+      toast.error("Patient search failed", {
+        description:
+          err?.message ?? "Unable to reach the server. Please try again.",
+      });
+    },
   });
+
+  /**
+   * UHID lookup:
+   *  • Found    → success toast + populate form
+   *  • Not found → warning toast (suppressed on repeat of same UHID)
+   *  • Error    → error toast
+   */
+  const uhidLookupMutation = useMutation({
+    mutationFn: getPatientByUhid,
+    onSuccess: (patient) => {
+      if (patient) {
+        populatePatientToForm(patient, false);
+        toast.success("Patient found", {
+          description: `${patient.firstName} ${patient.lastName} loaded successfully.`,
+        });
+        lastNotFoundUhid.current = null;
+      } else {
+        if (lastNotFoundUhid.current !== uihdNo) {
+          toast.warning("No patient found", {
+            description: `No record matches UHID "${uihdNo}". You may register a new patient.`,
+          });
+          lastNotFoundUhid.current = uihdNo;
+        }
+      }
+    },
+    onError: (err) => {
+      toast.error("UHID lookup failed", {
+        description:
+          err?.message ?? "Unable to reach the server. Check your connection.",
+      });
+    },
+  });
+
+  // ─────────────────────────────────────────────────────────
+  // HELPERS
+  // ─────────────────────────────────────────────────────────
 
   const populatePatientToForm = (patient, isFromSearch = false) => {
     const fullName = `${patient.firstName} ${patient.middleName} ${patient.lastName}`;
@@ -550,59 +630,47 @@ const PatientRegistration = () => {
     setPrimaryPhone(patient.phoneNumber);
     setShowSearchResults(false);
     setIsEditingPatient(true);
+    setFieldErrors({});
   };
-
-  const uhidLookupMutation = useMutation({
-    mutationFn: getPatientByUhid,
-    onSuccess: (patient) => {
-      if (patient) populatePatientToForm(patient, false);
-    },
-  });
 
   const clearForm = () => {
     setUihdNo("");
-    setTitle("");
     setSurname("");
     setFirstName("");
     setMiddleName("");
-    setGender("");
     setDateOfBirth("");
     setPrimaryPhone("");
+    setIdDocumentNumber("");
     setSearchTerm("");
-    setNationality("Kenyan");
-    setPatientType("Kenyan");
+    setNationality("");
     setIdType("National ID");
-    setReligion("");
-    setDocumentNumber("");
-    setAlternatePhone("");
-    setEmail("");
     setCounty("");
     setSubCounty("");
     setWard("");
-    setVillage("");
-    setPhysicalAddress("");
-    setPatientCategory("General");
-    setPaymentCategory("");
-    setEmployer("");
     setIsSuspended(false);
-    setAdminComments("");
     setNokSurname("");
     setNokFirstName("");
     setNokOtherName("");
     setNokRelationship("");
     setNokPhone("");
-    setNokIdNumber("");
-    setNokAddress("");
-    setNokEmail("");
-    setNokEmployer("");
     setEmergencyName("");
     setEmergencyRelationship("");
     setEmergencyPhone("");
     setAlternateEmergencyPhone("");
     setSameAsNok(false);
     setIsEditingPatient(false);
-    setErrors({});
-    setTouched({});
+    setFieldErrors({});
+    lastNotFoundUhid.current = null;
+  };
+
+  /** Clear a single field error as soon as the user starts correcting it */
+  const clearFieldError = (field) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -1010,7 +1078,7 @@ const PatientRegistration = () => {
         <Input
           label="Age"
           placeholder="Age"
-          value={approximateAge}
+          value={ageGroup}
           readOnly
           inputClassName="bg-slate-50 font-semibold max-w-38"
         />
