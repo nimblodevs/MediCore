@@ -1,12 +1,16 @@
 /**
  * Patient Registration Form Component
  * Handles new patient registration and existing patient updates
- * Features: UHID lookup, patient search, multi-tab form, date formatting
+ * Features: UHID lookup, patient search, multi-tab form, date formatting,
+ *           field-level validation with friendly error messages.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { z } from "zod";
+import { toast } from "sonner";
 import {
+  AlertCircle,
   Building2,
   CalendarDays,
   ContactRound,
@@ -38,10 +42,151 @@ import {
 } from "../../utils/kenyaLocations";
 
 // ============================================
-// STYLING & COMPONENT CONSTANTS
+// VALIDATION SCHEMA
 // ============================================
 
-/** Base styling for form input fields */
+/** Kenyan phone numbers: optional +254 / 0 prefix, then 7 or 1 + 8 digits. */
+const KE_PHONE_REGEX = /^(?:\+?254|0)?[17]\d{8}$/;
+/** Loose ID number: 4-20 alphanumeric chars (covers National ID, Passport, etc.). */
+const ID_NUMBER_REGEX = /^[A-Za-z0-9-]{4,20}$/;
+/** Names: letters, spaces, hyphens, apostrophes. */
+const NAME_REGEX = /^[A-Za-z][A-Za-z\s'-]*$/;
+
+const friendlyPhone = z
+  .string()
+  .trim()
+  .regex(
+    KE_PHONE_REGEX,
+    "Enter a valid phone number (e.g. 0712 345 678 or +254712345678)"
+  );
+
+const optionalPhone = z
+  .string()
+  .trim()
+  .refine((v) => v === "" || KE_PHONE_REGEX.test(v), {
+    message: "Enter a valid phone number or leave blank",
+  });
+
+const optionalEmail = z
+  .string()
+  .trim()
+  .refine((v) => v === "" || z.string().email().safeParse(v).success, {
+    message: "Enter a valid email address or leave blank",
+  });
+
+const nameField = (label) =>
+  z
+    .string()
+    .trim()
+    .min(2, `${label} must be at least 2 characters`)
+    .max(50, `${label} must be 50 characters or fewer`)
+    .regex(
+      NAME_REGEX,
+      `${label} can only contain letters, spaces, hyphens or apostrophes`
+    );
+
+const requiredSelect = (label) =>
+  z.string().trim().min(1, `Please select a ${label.toLowerCase()}`);
+
+const dobField = z
+  .string()
+  .min(1, "Date of birth is required")
+  .refine(
+    (v) => {
+      const d = new Date(`${v}T00:00:00`);
+      if (Number.isNaN(d.getTime())) return false;
+      const today = new Date();
+      if (d > today) return false;
+      const ageYears =
+        (today.getTime() - d.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+      return ageYears <= 130;
+    },
+    {
+      message: "Enter a real date of birth (not in the future, age ≤ 130)",
+    }
+  );
+
+const patientSchema = z.object({
+  // Primary identifiers
+  title: requiredSelect("Title"),
+  surname: nameField("Surname"),
+  firstName: nameField("First name"),
+  middleName: nameField("Middle name"),
+  gender: requiredSelect("Gender"),
+  dateOfBirth: dobField,
+  primaryPhone: friendlyPhone,
+  nationality: requiredSelect("Nationality"),
+
+  // Demography & contact
+  documentNumber: z
+    .string()
+    .trim()
+    .min(1, "Document number is required")
+    .regex(ID_NUMBER_REGEX, "Use 4-20 letters, numbers or hyphens"),
+  alternatePhone: friendlyPhone,
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email is required")
+    .email("Enter a valid email address")
+    .max(255, "Email must be 255 characters or fewer"),
+  county: requiredSelect("County"),
+  subCounty: requiredSelect("Sub-county"),
+  village: z
+    .string()
+    .trim()
+    .min(2, "Village/Estate must be at least 2 characters")
+    .max(100, "Village/Estate must be 100 characters or fewer"),
+  physicalAddress: z
+    .string()
+    .trim()
+    .min(3, "Physical address must be at least 3 characters")
+    .max(200, "Physical address must be 200 characters or fewer"),
+
+  // NOK (optional, but validated when provided)
+  nokPhone: optionalPhone,
+  nokEmail: optionalEmail,
+
+  // Emergency (required)
+  emergencyName: z
+    .string()
+    .trim()
+    .min(2, "Emergency contact name must be at least 2 characters")
+    .max(120, "Emergency contact name must be 120 characters or fewer"),
+  emergencyRelationship: requiredSelect("Relationship"),
+  emergencyPhone: friendlyPhone,
+  alternateEmergencyPhone: optionalPhone,
+});
+
+/** Map every validated field to the tab it lives on (for jump-to-error). */
+const FIELD_TAB = {
+  title: "Demography & Contact Details",
+  surname: "Demography & Contact Details",
+  firstName: "Demography & Contact Details",
+  middleName: "Demography & Contact Details",
+  gender: "Demography & Contact Details",
+  dateOfBirth: "Demography & Contact Details",
+  primaryPhone: "Demography & Contact Details",
+  nationality: "Demography & Contact Details",
+  documentNumber: "Demography & Contact Details",
+  alternatePhone: "Demography & Contact Details",
+  email: "Demography & Contact Details",
+  county: "Demography & Contact Details",
+  subCounty: "Demography & Contact Details",
+  village: "Demography & Contact Details",
+  physicalAddress: "Demography & Contact Details",
+  nokPhone: "NOK & Emergency Contact",
+  nokEmail: "NOK & Emergency Contact",
+  emergencyName: "NOK & Emergency Contact",
+  emergencyRelationship: "NOK & Emergency Contact",
+  emergencyPhone: "NOK & Emergency Contact",
+  alternateEmergencyPhone: "NOK & Emergency Contact",
+};
+
+// ============================================
+// STYLING & SHARED COMPONENTS
+// ============================================
+
 const fieldClasses =
   "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-xs transition-colors focus:border-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-600/10";
 
@@ -64,36 +209,54 @@ const SelectField = ({
   children,
   value,
   onChange,
+  onBlur,
   disabled = false,
   leftIcon: Icon,
   containerClassName = "",
-}) => (
-  <div className={["w-full", containerClassName].join(" ")}>
-    <label
-      htmlFor={id}
-      className="mb-1.5 block text-sm font-semibold text-slate-800"
-    >
-      {label}
-      {required ? <span className="ml-0.5 text-rose-600">*</span> : null}
-    </label>
-    <div className="relative">
-      {Icon ? (
-        <Icon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-      ) : null}
-      <select
-        id={id}
-        value={value}
-        disabled={disabled}
-        onChange={onChange}
-        className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-xs transition-colors focus:border-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-600/10 ${
-          Icon ? "pl-10" : ""
-        } ${disabled ? "cursor-not-allowed bg-slate-100 text-slate-500" : ""}`}
+  error,
+}) => {
+  const describedBy = error ? `${id}-error` : undefined;
+  return (
+    <div className={["w-full", containerClassName].join(" ")}>
+      <label
+        htmlFor={id}
+        className="mb-1.5 block text-sm font-semibold text-slate-800"
       >
-        {children}
-      </select>
+        {label}
+        {required ? <span className="ml-0.5 text-rose-600">*</span> : null}
+      </label>
+      <div className="relative">
+        {Icon ? (
+          <Icon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+        ) : null}
+        <select
+          id={id}
+          value={value}
+          disabled={disabled}
+          onChange={onChange}
+          onBlur={onBlur}
+          aria-invalid={error ? "true" : undefined}
+          aria-describedby={describedBy}
+          className={[
+            "h-10 w-full rounded-lg border bg-white px-3 text-sm text-slate-900 shadow-xs transition-colors focus:outline-none focus:ring-4",
+            error
+              ? "border-red-300 focus:border-red-400 focus:ring-red-500/10"
+              : "border-slate-200 focus:border-cyan-400 focus:ring-cyan-600/10",
+            Icon ? "pl-10" : "",
+            disabled ? "cursor-not-allowed bg-slate-100 text-slate-500" : "",
+          ].join(" ")}
+        >
+          {children}
+        </select>
+      </div>
+      {error ? (
+        <p id={describedBy} className="mt-1.5 text-xs font-medium text-red-600">
+          {error}
+        </p>
+      ) : null}
     </div>
-  </div>
-);
+  );
+};
 
 const TextareaField = ({
   id,
@@ -102,116 +265,138 @@ const TextareaField = ({
   className = "",
   rows = 2,
   leftIcon: LeftIcon,
-}) => (
-  <div className={className}>
-    <label
-      htmlFor={id}
-      className="mb-1.5 block text-sm font-semibold text-slate-800"
-    >
-      {label}
-    </label>
-    <div className="relative">
-      {LeftIcon ? (
-        <span className="pointer-events-none absolute inset-y-0 left-3 flex items-start pt-2.5 text-slate-400">
-          <LeftIcon className="size-4" />
-        </span>
+  value,
+  onChange,
+  maxLength = 1000,
+  error,
+}) => {
+  const describedBy = error ? `${id}-error` : undefined;
+  return (
+    <div className={className}>
+      <label
+        htmlFor={id}
+        className="mb-1.5 block text-sm font-semibold text-slate-800"
+      >
+        {label}
+      </label>
+      <div className="relative">
+        {LeftIcon ? (
+          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-start pt-2.5 text-slate-400">
+            <LeftIcon className="size-4" />
+          </span>
+        ) : null}
+        <textarea
+          id={id}
+          rows={rows}
+          placeholder={placeholder}
+          value={value}
+          onChange={onChange}
+          maxLength={maxLength}
+          aria-invalid={error ? "true" : undefined}
+          aria-describedby={describedBy}
+          className={`${fieldClasses} min-h-16 resize-y py-2 ${
+            LeftIcon ? "pl-9" : ""
+          } ${
+            error
+              ? "border-red-300 focus:border-red-400 focus:ring-red-500/10"
+              : ""
+          }`}
+        />
+      </div>
+      {error ? (
+        <p id={describedBy} className="mt-1.5 text-xs font-medium text-red-600">
+          {error}
+        </p>
       ) : null}
-      <textarea
-        id={id}
-        rows={rows}
-        placeholder={placeholder}
-        className={`${fieldClasses} min-h-16 resize-y py-2 ${
-          LeftIcon ? "pl-9" : ""
-        }`}
-      />
     </div>
-  </div>
-);
-
-const CommentField = ({ id }) => (
-  <TextareaField
-    id={id}
-    label="Comments"
-    placeholder="Add relevant notes or special considerations"
-    className="sm:col-span-2 xl:col-span-2"
-    leftIcon={FileText}
-  />
-);
+  );
+};
 
 // ============================================
 // MAIN COMPONENT
 // ============================================
 
 const PatientRegistration = () => {
-  // ============================================
-  // STATE MANAGEMENT
-  // ============================================
-
-  // Form visibility and navigation
-  /** Currently active tab: "Demography & Contact Details" | "NOK & Emergency Contact" | "Administrative Details" */
+  // --- Tab navigation ---
   const [activeTab, setActiveTab] = useState("Demography & Contact Details");
 
-  // Demography & Contact Details section
+  // --- Primary identifiers ---
+  const [uihdNo, setUihdNo] = useState("");
+  const [title, setTitle] = useState("");
+  const [surname, setSurname] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [gender, setGender] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
+  const [primaryPhone, setPrimaryPhone] = useState("");
   const [patienttype, setPatientType] = useState("Kenyan");
-  const [nationality, setNationality] = useState("");
+  const [nationality, setNationality] = useState("Kenyan");
   const [idType, setIdType] = useState("National ID");
+
+  // --- Demography & contact ---
+  const [religion, setReligion] = useState("");
+  const [documentNumber, setDocumentNumber] = useState("");
+  const [alternatePhone, setAlternatePhone] = useState("");
+  const [email, setEmail] = useState("");
   const [county, setCounty] = useState("");
   const [subCounty, setSubCounty] = useState("");
+  const [ward, setWard] = useState("");
+  const [village, setVillage] = useState("");
+  const [physicalAddress, setPhysicalAddress] = useState("");
+  const [patientCategory, setPatientCategory] = useState("General");
+  const [paymentCategory, setPaymentCategory] = useState("");
+  const [employer, setEmployer] = useState("");
 
-  // Search functionality
+  // --- Search ---
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [isSearchInputFocused, setIsSearchInputFocused] = useState(false);
 
-  // Administrative section
-  const [isSuspended, setIsSuspended] = useState(false);
-
-  // Patient basic information
-  const [uihdNo, setUihdNo] = useState("");
-  const [surname, setSurname] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [middleName, setMiddleName] = useState("");
-  const [primaryPhone, setPrimaryPhone] = useState("");
-
-  // NOK & Emergency Contact section
+  // --- NOK & Emergency ---
   const [sameAsNok, setSameAsNok] = useState(false);
   const [nokSurname, setNokSurname] = useState("");
   const [nokFirstName, setNokFirstName] = useState("");
   const [nokOtherName, setNokOtherName] = useState("");
   const [nokRelationship, setNokRelationship] = useState("");
   const [nokPhone, setNokPhone] = useState("");
+  const [nokIdNumber, setNokIdNumber] = useState("");
+  const [nokAddress, setNokAddress] = useState("");
+  const [nokEmail, setNokEmail] = useState("");
+  const [nokEmployer, setNokEmployer] = useState("");
   const [emergencyName, setEmergencyName] = useState("");
   const [emergencyRelationship, setEmergencyRelationship] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [alternateEmergencyPhone, setAlternateEmergencyPhone] = useState("");
 
-  // Form state
-  /** True when editing existing patient, false when creating new */
+  // --- Administrative ---
+  const [isSuspended, setIsSuspended] = useState(false);
+  const [adminComments, setAdminComments] = useState("");
+
+  // --- Form meta state ---
   const [isEditingPatient, setIsEditingPatient] = useState(false);
-  /** True while form submission is in progress */
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // --- Validation state ---
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
 
   // ============================================
   // FORM CONFIGURATION
   // ============================================
 
-  /** Available form sections for tabbed interface */
   const sectionTabs = [
     "Demography & Contact Details",
     "NOK & Emergency Contact",
     "Administrative Details",
   ];
 
-  /** Icon mappings for each section tab */
   const sectionTabIcons = {
     "Demography & Contact Details": IdCard,
     "NOK & Emergency Contact": Users,
-    "Residence Details": MapPin,
     "Administrative Details": Building2,
   };
-  /** Descriptions for each form section */
+
   const sectionDescriptions = {
     "Demography & Contact Details":
       "Capture statutory identity attributes and patient communication channels used for matching, outreach, and follow-up.",
@@ -225,7 +410,6 @@ const PatientRegistration = () => {
   // COMPUTED VALUES
   // ============================================
 
-  /** Calculate patient age from date of birth (memoized to prevent unnecessary recalculations) */
   const approximateAge = useMemo(() => {
     if (!dateOfBirth) return "";
     const birthDate = new Date(`${dateOfBirth}T00:00:00`);
@@ -245,26 +429,99 @@ const PatientRegistration = () => {
     }`;
   }, [dateOfBirth]);
 
-  /** Determine patient nationality to set appropriate ID type options */
   const isKenyan = patienttype === "Kenyan";
   const identificationOptions = isKenyan
     ? ["National ID", "Military ID", "Birth Certificate", "Passport No."]
     : ["Alien ID", "Passport No.", "UNHCR Registration Number"];
-  /** Generate label for document number input based on ID type selected */
   const documentNumberLabel =
     idType === "Passport No."
       ? "Passport No."
       : idType === "UNHCR Registration Number"
-        ? "UNHCR Registration Number"
-        : idType === "Birth Certificate"
-          ? "Birth Certificate Number"
-          : `${idType} Number`;
+      ? "UNHCR Registration Number"
+      : idType === "Birth Certificate"
+      ? "Birth Certificate Number"
+      : `${idType} Number`;
+
+  // ============================================
+  // VALIDATION HELPERS
+  // ============================================
+
+  /** Build a snapshot of all validated values from current state. */
+  const getValues = () => ({
+    title,
+    surname,
+    firstName,
+    middleName,
+    gender,
+    dateOfBirth,
+    primaryPhone,
+    nationality,
+    documentNumber,
+    alternatePhone,
+    email,
+    county,
+    subCounty,
+    village,
+    physicalAddress,
+    nokPhone,
+    nokEmail,
+    emergencyName,
+    emergencyRelationship,
+    emergencyPhone,
+    alternateEmergencyPhone,
+  });
+
+  /** Run zod and return a flat { field: message } map. */
+  const runValidation = (values) => {
+    const result = patientSchema.safeParse(values);
+    if (result.success) return {};
+    const flat = {};
+    for (const issue of result.error.issues) {
+      const key = issue.path[0];
+      if (key && !flat[key]) flat[key] = issue.message;
+    }
+    return flat;
+  };
+
+  /** Re-validate every time a value changes so visible error messages clear immediately. */
+  useEffect(() => {
+    const next = runValidation(getValues());
+    setErrors(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    title,
+    surname,
+    firstName,
+    middleName,
+    gender,
+    dateOfBirth,
+    primaryPhone,
+    nationality,
+    documentNumber,
+    alternatePhone,
+    email,
+    county,
+    subCounty,
+    village,
+    physicalAddress,
+    nokPhone,
+    nokEmail,
+    emergencyName,
+    emergencyRelationship,
+    emergencyPhone,
+    alternateEmergencyPhone,
+  ]);
+
+  /** Show an error message only if the user has touched the field or attempted submit. */
+  const errorFor = (field) => (touched[field] ? errors[field] : undefined);
+
+  const markTouched = (field) => () =>
+    setTouched((prev) => (prev[field] ? prev : { ...prev, [field]: true }));
 
   // ============================================
   // SIDE EFFECTS
   // ============================================
 
-  /** Debounce search input to reduce API calls */
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), 350);
     return () => clearTimeout(t);
@@ -274,22 +531,12 @@ const PatientRegistration = () => {
   // API QUERIES & MUTATIONS
   // ============================================
 
-  /** Fetch patient search results based on debounced search term */
   const { data: searchResults = [] } = useQuery({
     queryKey: ["patient-search", debouncedSearchTerm],
     queryFn: () => searchPatients(debouncedSearchTerm),
     enabled: Boolean(debouncedSearchTerm.trim()),
   });
 
-  // ============================================
-  // HELPER FUNCTIONS
-  // ============================================
-
-  /**
-   * Populate form fields with patient data
-   * @param {Object} patient - Patient data object
-   * @param {boolean} isFromSearch - True if patient was selected from search results
-   */
   const populatePatientToForm = (patient, isFromSearch = false) => {
     const fullName = `${patient.firstName} ${patient.middleName} ${patient.lastName}`;
     if (isFromSearch) {
@@ -305,7 +552,6 @@ const PatientRegistration = () => {
     setIsEditingPatient(true);
   };
 
-  /** Lookup patient by UHID when user enters it in the form */
   const uhidLookupMutation = useMutation({
     mutationFn: getPatientByUhid,
     onSuccess: (patient) => {
@@ -313,92 +559,178 @@ const PatientRegistration = () => {
     },
   });
 
-  /**
-   * Reset all form fields to empty/default values
-   * Called when user clicks "Clear Details" button or after successful submission
-   */
   const clearForm = () => {
     setUihdNo("");
+    setTitle("");
     setSurname("");
     setFirstName("");
     setMiddleName("");
+    setGender("");
     setDateOfBirth("");
     setPrimaryPhone("");
     setSearchTerm("");
-    setNationality("");
+    setNationality("Kenyan");
+    setPatientType("Kenyan");
     setIdType("National ID");
+    setReligion("");
+    setDocumentNumber("");
+    setAlternatePhone("");
+    setEmail("");
     setCounty("");
     setSubCounty("");
+    setWard("");
+    setVillage("");
+    setPhysicalAddress("");
+    setPatientCategory("General");
+    setPaymentCategory("");
+    setEmployer("");
     setIsSuspended(false);
+    setAdminComments("");
     setNokSurname("");
     setNokFirstName("");
     setNokOtherName("");
     setNokRelationship("");
     setNokPhone("");
+    setNokIdNumber("");
+    setNokAddress("");
+    setNokEmail("");
+    setNokEmployer("");
     setEmergencyName("");
     setEmergencyRelationship("");
     setEmergencyPhone("");
     setAlternateEmergencyPhone("");
     setSameAsNok(false);
     setIsEditingPatient(false);
+    setErrors({});
+    setTouched({});
   };
 
-  /**
-   * Handle form submission for patient registration or update
-   * Collects all form data and prepares for API submission
-   */
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
 
+    const values = getValues();
+    const validationErrors = runValidation(values);
+
+    if (Object.keys(validationErrors).length > 0) {
+      // Mark every invalid field as touched so messages appear.
+      const allTouched = Object.keys(validationErrors).reduce((acc, k) => {
+        acc[k] = true;
+        return acc;
+      }, {});
+      setTouched((prev) => ({ ...prev, ...allTouched }));
+      setErrors(validationErrors);
+
+      // Jump to the first tab containing an error.
+      const firstField = Object.keys(validationErrors)[0];
+      const targetTab = FIELD_TAB[firstField];
+      if (targetTab && targetTab !== activeTab) setActiveTab(targetTab);
+
+      const count = Object.keys(validationErrors).length;
+      toast.error(
+        `Please fix ${count} ${
+          count === 1 ? "error" : "errors"
+        } before submitting`,
+        {
+          description:
+            validationErrors[firstField] +
+            (count > 1 ? ` (and ${count - 1} more)` : ""),
+        }
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
-      // Prepare patient data for API submission
       const patientData = {
         uhid: uihdNo,
+        title,
         firstName,
         middleName,
         lastName: surname,
+        gender,
         dob: dateOfBirth,
         phoneNumber: primaryPhone,
+        alternatePhone,
+        email,
         nationality,
+        idType,
+        documentNumber,
+        religion,
+        county,
+        subCounty,
+        ward,
+        village,
+        physicalAddress,
+        patientCategory,
+        paymentCategory,
+        employer,
+        nok: {
+          surname: nokSurname,
+          firstName: nokFirstName,
+          otherName: nokOtherName,
+          relationship: nokRelationship,
+          phone: nokPhone,
+          idNumber: nokIdNumber,
+          address: nokAddress,
+          email: nokEmail,
+          employer: nokEmployer,
+        },
+        emergency: {
+          name: emergencyName,
+          relationship: emergencyRelationship,
+          phone: emergencyPhone,
+          alternatePhone: alternateEmergencyPhone,
+        },
         isSuspended,
-        // TODO: Add other fields as needed
+        comments: adminComments,
       };
 
-      if (isEditingPatient) {
-        // Update existing patient
-        console.log("Updating patient:", patientData);
-        // TODO: Connect to updatePatient API endpoint
-        // await updatePatient(patientData);
-      } else {
-        // Create new patient
-        console.log("Creating new patient:", patientData);
-        // TODO: Connect to createPatient API endpoint
-        // await createPatient(patientData);
-      }
+      // TODO: Connect to create/update endpoint.
+      console.log(
+        isEditingPatient ? "Updating patient:" : "Creating new patient:",
+        patientData
+      );
 
-      // Clear form after successful submission
-      // TODO: Show success toast notification
-      // toast.success(isEditingPatient ? "Patient updated successfully" : "Patient registered successfully");
+      toast.success(
+        isEditingPatient
+          ? "Patient updated successfully"
+          : "Patient registered successfully"
+      );
       clearForm();
     } catch (error) {
-      // TODO: Show error toast notification
-      // toast.error("An error occurred");
       console.error("Submission error:", error);
+      toast.error("Something went wrong", {
+        description: "Please try again in a moment.",
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   // ============================================
-  // RENDER
+  // RENDER HELPERS
   // ============================================
 
-  /** Render section tabs for navigation */
+  /** Count how many errors live on each tab, for the badge in tab buttons. */
+  const tabErrorCounts = useMemo(() => {
+    const counts = {
+      "Demography & Contact Details": 0,
+      "NOK & Emergency Contact": 0,
+      "Administrative Details": 0,
+    };
+    for (const field of Object.keys(errors)) {
+      if (!touched[field]) continue;
+      const tab = FIELD_TAB[field];
+      if (tab) counts[tab] += 1;
+    }
+    return counts;
+  }, [errors, touched]);
+
   const sectionTabsContent = (
     <div className="flex flex-wrap gap-1.5">
       {sectionTabs.map((tab) => {
         const TabIcon = sectionTabIcons[tab];
+        const errCount = tabErrorCounts[tab] || 0;
         return (
           <button
             key={tab}
@@ -412,6 +744,21 @@ const PatientRegistration = () => {
           >
             <TabIcon className="size-4" />
             <span>{tab}</span>
+            {errCount > 0 ? (
+              <span
+                className={`inline-flex min-w-5 items-center justify-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
+                  activeTab === tab
+                    ? "bg-white text-rose-600"
+                    : "bg-rose-100 text-rose-700"
+                }`}
+                title={`${errCount} field${
+                  errCount === 1 ? "" : "s"
+                } need attention`}
+              >
+                <AlertCircle className="size-3" />
+                {errCount}
+              </span>
+            ) : null}
           </button>
         );
       })}
@@ -419,11 +766,10 @@ const PatientRegistration = () => {
   );
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Header Section with Search and Patient Type */}
+    <form onSubmit={handleSubmit} noValidate className="space-y-5">
+      {/* Header */}
       <div className="rounded-2xl border border-cyan-100 bg-gradient-to-r from-cyan-50 to-sky-50 px-4 py-4 shadow-sm sm:px-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {/* Form Title */}
           <div>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
               Patient Registration Form
@@ -432,9 +778,7 @@ const PatientRegistration = () => {
               Capture patient registration details.
             </p>
           </div>
-          {/* Search Patient Box */}
           <div className="flex w-full max-w-3xl flex-col gap-3 rounded-2xl bg-white/90 p-3 shadow-sm ring-1 ring-cyan-100 lg:flex-row lg:items-end">
-            {/* Patient Search Field */}
             <div className="relative min-w-0 flex-1">
               <Input
                 label="Search Patient"
@@ -458,7 +802,6 @@ const PatientRegistration = () => {
                 }}
                 leftIcon={<Search className="size-4" />}
               />
-              {/* Search Results Dropdown */}
               {showSearchResults &&
               isSearchInputFocused &&
               debouncedSearchTerm.trim() ? (
@@ -525,7 +868,6 @@ const PatientRegistration = () => {
                 </div>
               ) : null}
             </div>
-            {/* Patient Type Selector */}
             <div className="w-full lg:w-52">
               <SelectField
                 id="patient-type"
@@ -535,6 +877,7 @@ const PatientRegistration = () => {
                   const next = e.target.value;
                   setPatientType(next);
                   setIdType(next === "Kenyan" ? "National ID" : "Alien ID");
+                  setNationality(next === "Kenyan" ? "Kenyan" : "");
                 }}
               >
                 <option value="Kenyan">Kenyan</option>
@@ -545,9 +888,8 @@ const PatientRegistration = () => {
         </div>
       </div>
 
-      {/* Primary Identifiers Section */}
+      {/* Primary Identifiers */}
       <Section description="Primary patient identifiers captured before section-specific details.">
-        {/* UHID/Patient Number Lookup */}
         <Input
           label="UIHD No."
           placeholder="Patient No."
@@ -573,7 +915,11 @@ const PatientRegistration = () => {
           id="title"
           label="Name Prefix (Title)"
           leftIcon={UserRound}
-          required={true}
+          required
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={markTouched("title")}
+          error={errorFor("title")}
         >
           <option value="">-- Select Title --</option>
           <option value="Mr">Mr.</option>
@@ -601,30 +947,48 @@ const PatientRegistration = () => {
           label="Surname / Family Name"
           value={surname}
           onChange={(e) => setSurname(e.target.value)}
+          onBlur={markTouched("surname")}
           placeholder="e.g. Otieno"
           autoComplete="family-name"
-          required={true}
+          required
+          maxLength={50}
+          error={errorFor("surname")}
           leftIcon={<User className="size-4" />}
         />
         <Input
           label="First Name / Given Name"
           value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
+          onBlur={markTouched("firstName")}
           placeholder="e.g. Amina"
           autoComplete="given-name"
-          required={true}
+          required
+          maxLength={50}
+          error={errorFor("firstName")}
           leftIcon={<UserRound className="size-4" />}
         />
         <Input
           label="Middle Name / Other Names"
           value={middleName}
           onChange={(e) => setMiddleName(e.target.value)}
+          onBlur={markTouched("middleName")}
           placeholder="e.g. Wanjiku"
           autoComplete="additional-name"
-          required={true}
+          required
+          maxLength={50}
+          error={errorFor("middleName")}
           leftIcon={<User className="size-4" />}
         />
-        <SelectField id="gender" label="Gender" required={true} leftIcon={Users}>
+        <SelectField
+          id="gender"
+          label="Gender"
+          required
+          leftIcon={Users}
+          value={gender}
+          onChange={(e) => setGender(e.target.value)}
+          onBlur={markTouched("gender")}
+          error={errorFor("gender")}
+        >
           <option value="">-- Gender --</option>
           <option value="Male">Male</option>
           <option value="Female">Female</option>
@@ -634,11 +998,13 @@ const PatientRegistration = () => {
         <Input
           label="Date of Birth"
           placeholder="Select date of birth"
-          
           type="date"
-          required={true}
+          required
           value={dateOfBirth}
           onChange={(e) => setDateOfBirth(e.target.value)}
+          onBlur={markTouched("dateOfBirth")}
+          max={new Date().toISOString().split("T")[0]}
+          error={errorFor("dateOfBirth")}
           leftIcon={<CalendarDays className="size-4" />}
         />
         <Input
@@ -651,8 +1017,6 @@ const PatientRegistration = () => {
         <Input
           label="Age Group"
           placeholder="Age group"
-          //value={ageGroup}
-          //onChange={(e) => setAgeGroup(e.target.value)}
           readOnly
           inputClassName="bg-slate-50 font-semibold max-w-38"
         />
@@ -661,26 +1025,29 @@ const PatientRegistration = () => {
           placeholder="e.g. 0712 345 678"
           value={primaryPhone}
           onChange={(e) => setPrimaryPhone(e.target.value)}
+          onBlur={markTouched("primaryPhone")}
           type="tel"
-          required={true}
+          required
+          maxLength={15}
+          error={errorFor("primaryPhone")}
           leftIcon={<Phone className="size-4" />}
         />
         <SelectField
           id="nationality-secondary"
           label="Nationality"
           leftIcon={Landmark}
-          required={true}
+          required
           value={nationality}
           disabled={isKenyan}
           onChange={(e) => setNationality(e.target.value)}
+          onBlur={markTouched("nationality")}
+          error={errorFor("nationality")}
         >
           {isKenyan ? (
             <option value="Kenyan">Kenyan</option>
           ) : (
             <>
               <option value="">-- Nationality --</option>
-
-              {/* East Africa */}
               <option value="Kenyan">Kenyan</option>
               <option value="Ugandan">Ugandan</option>
               <option value="Tanzanian">Tanzanian</option>
@@ -691,8 +1058,6 @@ const PatientRegistration = () => {
               <option value="Ethiopian">Ethiopian</option>
               <option value="Eritrean">Eritrean</option>
               <option value="Djiboutian">Djiboutian</option>
-
-              {/* Central Africa */}
               <option value="Congolese (DRC)">Congolese (DRC)</option>
               <option value="Congolese (Republic)">Congolese (Republic)</option>
               <option value="Cameroonian">Cameroonian</option>
@@ -700,8 +1065,6 @@ const PatientRegistration = () => {
               <option value="Chadian">Chadian</option>
               <option value="Gabonese">Gabonese</option>
               <option value="Equatorial Guinean">Equatorial Guinean</option>
-
-              {/* Southern Africa */}
               <option value="South African">South African</option>
               <option value="Zimbabwean">Zimbabwean</option>
               <option value="Zambian">Zambian</option>
@@ -712,8 +1075,6 @@ const PatientRegistration = () => {
               <option value="Lesotho">Lesotho</option>
               <option value="Eswatini">Eswatini</option>
               <option value="Angolan">Angolan</option>
-
-              {/* West Africa */}
               <option value="Nigerian">Nigerian</option>
               <option value="Ghanaian">Ghanaian</option>
               <option value="Ivorian">Ivorian</option>
@@ -726,16 +1087,12 @@ const PatientRegistration = () => {
               <option value="Beninese">Beninese</option>
               <option value="Togolese">Togolese</option>
               <option value="Guinean">Guinean</option>
-
-              {/* North Africa */}
               <option value="Egyptian">Egyptian</option>
               <option value="Sudanese">Sudanese</option>
               <option value="Libyan">Libyan</option>
               <option value="Tunisian">Tunisian</option>
               <option value="Algerian">Algerian</option>
               <option value="Moroccan">Moroccan</option>
-
-              {/* Europe */}
               <option value="British">British</option>
               <option value="French">French</option>
               <option value="German">German</option>
@@ -745,8 +1102,6 @@ const PatientRegistration = () => {
               <option value="Portuguese">Portuguese</option>
               <option value="Russian">Russian</option>
               <option value="Ukrainian">Ukrainian</option>
-
-              {/* Asia */}
               <option value="Chinese">Chinese</option>
               <option value="Indian">Indian</option>
               <option value="Japanese">Japanese</option>
@@ -757,24 +1112,16 @@ const PatientRegistration = () => {
               <option value="Indonesian">Indonesian</option>
               <option value="Saudi Arabian">Saudi Arabian</option>
               <option value="Emirati">Emirati</option>
-
-              {/* North America */}
               <option value="American">American</option>
               <option value="Canadian">Canadian</option>
               <option value="Mexican">Mexican</option>
-
-              {/* South America */}
               <option value="Brazilian">Brazilian</option>
               <option value="Argentine">Argentine</option>
               <option value="Colombian">Colombian</option>
               <option value="Chilean">Chilean</option>
-
-              {/* Oceania */}
               <option value="Australian">Australian</option>
               <option value="New Zealander">New Zealander</option>
               <option value="Fijian">Fijian</option>
-
-              {/* Other */}
               <option value="Stateless">Stateless</option>
               <option value="Other">Other</option>
             </>
@@ -782,15 +1129,20 @@ const PatientRegistration = () => {
         </SelectField>
       </Section>
 
-      {/* Main Form Sections with Tab Navigation */}
+      {/* Tabbed sections */}
       <Section
         description={sectionDescriptions[activeTab]}
         headerContent={sectionTabsContent}
       >
-        {/* Demography & Contact Details Tab */}
         {activeTab === "Demography & Contact Details" ? (
           <>
-            <SelectField id="religion" label="Religion" leftIcon={Shield}>
+            <SelectField
+              id="religion"
+              label="Religion"
+              leftIcon={Shield}
+              value={religion}
+              onChange={(e) => setReligion(e.target.value)}
+            >
               <option value="">-- Religion --</option>
               <option value="Christian-Catholic">Christian-Catholic</option>
               <option value="Christian">Christian</option>
@@ -817,34 +1169,53 @@ const PatientRegistration = () => {
             <Input
               label={documentNumberLabel}
               placeholder="Enter document number"
-              required={true}
+              required
+              value={documentNumber}
+              onChange={(e) => setDocumentNumber(e.target.value)}
+              onBlur={markTouched("documentNumber")}
+              maxLength={20}
+              error={errorFor("documentNumber")}
               leftIcon={<IdCard className="size-4" />}
             />
             <Input
               label="Alternate Phone"
-              placeholder="Optional alternate phone number"
+              placeholder="e.g. 0712 345 678"
               type="tel"
-              required={true}
+              required
+              value={alternatePhone}
+              onChange={(e) => setAlternatePhone(e.target.value)}
+              onBlur={markTouched("alternatePhone")}
+              maxLength={15}
+              error={errorFor("alternatePhone")}
               leftIcon={<Phone className="size-4" />}
             />
             <Input
               label="Email Address"
               placeholder="e.g. patient@example.com"
               type="email"
-              required={true}
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onBlur={markTouched("email")}
+              maxLength={255}
+              error={errorFor("email")}
               leftIcon={<Mail className="size-4" />}
             />
             <SelectField
               id="county"
               label="County"
               value={county}
-              required={true}
+              required
               onChange={(e) => {
                 setCounty(e.target.value);
                 setSubCounty("");
+                setWard("");
               }}
+              onBlur={markTouched("county")}
+              error={errorFor("county")}
               leftIcon={MapPin}
             >
+              <option value="">-- County --</option>
               {getCounties().map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -855,38 +1226,65 @@ const PatientRegistration = () => {
               id="sub-county"
               label="Sub-county"
               value={subCounty}
-              required={true}
-              onChange={(e) => setSubCounty(e.target.value)}
+              required
+              onChange={(e) => {
+                setSubCounty(e.target.value);
+                setWard("");
+              }}
+              onBlur={markTouched("subCounty")}
+              error={errorFor("subCounty")}
               leftIcon={MapPin}
             >
+              <option value="">-- Sub-county --</option>
               {getSubCounties(county).map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
               ))}
             </SelectField>
-            <SelectField id="ward" label="Ward" leftIcon={MapPin}>
+            <SelectField
+              id="ward"
+              label="Ward"
+              leftIcon={MapPin}
+              value={ward}
+              onChange={(e) => setWard(e.target.value)}
+            >
+              <option value="">-- Ward --</option>
               {getWards(county, subCounty).map((w) => (
-                <option key={w}>{w}</option>
+                <option key={w} value={w}>
+                  {w}
+                </option>
               ))}
             </SelectField>
 
             <Input
               label="Village/Estate"
-              required={true}
+              required
+              value={village}
+              onChange={(e) => setVillage(e.target.value)}
+              onBlur={markTouched("village")}
               placeholder="e.g. Kileleshwa"
+              maxLength={100}
+              error={errorFor("village")}
               leftIcon={<Building2 className="size-4" />}
             />
             <Input
               label="Physical Address"
               placeholder="e.g. Rewa Apartment"
-              required={true}
+              required
+              value={physicalAddress}
+              onChange={(e) => setPhysicalAddress(e.target.value)}
+              onBlur={markTouched("physicalAddress")}
+              maxLength={200}
+              error={errorFor("physicalAddress")}
               leftIcon={<MapPin className="size-4" />}
             />
             <SelectField
               id="patient-category"
               label="Patient Category"
               leftIcon={NotebookTabs}
+              value={patientCategory}
+              onChange={(e) => setPatientCategory(e.target.value)}
             >
               <option value="General">General</option>
               <option value="Private">Private</option>
@@ -896,13 +1294,22 @@ const PatientRegistration = () => {
               id="payment-category"
               label="Payment Category"
               leftIcon={CircleDollarSign}
+              value={paymentCategory}
+              onChange={(e) => setPaymentCategory(e.target.value)}
             >
-              
+              <option value="">-- Payment Category --</option>
+              <option value="Cash">Cash</option>
+              <option value="Insurance">Insurance</option>
+              <option value="NHIF">NHIF</option>
+              <option value="Corporate">Corporate</option>
             </SelectField>
-            
+
             <Input
               label="Employer"
               placeholder="Employer Name"
+              value={employer}
+              onChange={(e) => setEmployer(e.target.value)}
+              maxLength={100}
               leftIcon={<BriefcaseBusiness className="size-4" />}
             />
 
@@ -923,7 +1330,6 @@ const PatientRegistration = () => {
           </>
         ) : null}
 
-        {/* Next of Kin & Emergency Contact Tab */}
         {activeTab === "NOK & Emergency Contact" ? (
           <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4 2xl:col-span-5 grid gap-4 lg:grid-cols-3">
             <div className="rounded-xl border border-slate-200 p-3 lg:col-span-2">
@@ -936,6 +1342,7 @@ const PatientRegistration = () => {
                   placeholder="Surname"
                   value={nokSurname}
                   onChange={(e) => setNokSurname(e.target.value)}
+                  maxLength={50}
                   leftIcon={<User className="size-4" />}
                 />
                 <Input
@@ -943,6 +1350,7 @@ const PatientRegistration = () => {
                   placeholder="First name"
                   value={nokFirstName}
                   onChange={(e) => setNokFirstName(e.target.value)}
+                  maxLength={50}
                   leftIcon={<UserRound className="size-4" />}
                 />
                 <Input
@@ -950,6 +1358,7 @@ const PatientRegistration = () => {
                   placeholder="Other name"
                   value={nokOtherName}
                   onChange={(e) => setNokOtherName(e.target.value)}
+                  maxLength={50}
                   leftIcon={<User className="size-4" />}
                 />
                 <SelectField
@@ -960,8 +1369,6 @@ const PatientRegistration = () => {
                   leftIcon={Users}
                 >
                   <option value="">-- Relationship --</option>
-
-                  {/* Immediate Family */}
                   <option value="Father">Father</option>
                   <option value="Mother">Mother</option>
                   <option value="Guardian">Guardian</option>
@@ -972,8 +1379,6 @@ const PatientRegistration = () => {
                   <option value="Daughter">Daughter</option>
                   <option value="Brother">Brother</option>
                   <option value="Sister">Sister</option>
-
-                  {/* Extended Family */}
                   <option value="Grandfather">Grandfather</option>
                   <option value="Grandmother">Grandmother</option>
                   <option value="Uncle">Uncle</option>
@@ -981,8 +1386,6 @@ const PatientRegistration = () => {
                   <option value="Cousin">Cousin</option>
                   <option value="Nephew">Nephew</option>
                   <option value="Niece">Niece</option>
-
-                  {/* Other Relationships */}
                   <option value="Partner">Partner</option>
                   <option value="Fiancé">Fiancé</option>
                   <option value="Fiancée">Fiancée</option>
@@ -993,13 +1396,9 @@ const PatientRegistration = () => {
                   <option value="Caregiver">Caregiver</option>
                   <option value="Social Worker">Social Worker</option>
                   <option value="Religious Leader">Religious Leader</option>
-
-                  {/* Emergency / Legal */}
                   <option value="Legal Representative">
                     Legal Representative
                   </option>
-
-                  {/* Other */}
                   <option value="Other">Other</option>
                 </SelectField>
 
@@ -1008,27 +1407,45 @@ const PatientRegistration = () => {
                   placeholder="e.g. 0712 345 678"
                   value={nokPhone}
                   onChange={(e) => setNokPhone(e.target.value)}
+                  onBlur={markTouched("nokPhone")}
+                  maxLength={15}
+                  error={errorFor("nokPhone")}
+                  helperText="Optional - leave blank if unavailable"
                   leftIcon={<Phone className="size-4" />}
                 />
                 <Input
                   label="NOK ID Number"
                   placeholder="e.g. 12345678"
+                  value={nokIdNumber}
+                  onChange={(e) => setNokIdNumber(e.target.value)}
+                  maxLength={20}
                   leftIcon={<IdCard className="size-4" />}
                 />
                 <Input
                   label="NOK Address"
                   placeholder="Physical address"
+                  value={nokAddress}
+                  onChange={(e) => setNokAddress(e.target.value)}
+                  maxLength={200}
                   leftIcon={<MapPin className="size-4" />}
                 />
                 <Input
                   label="NOK Email Address"
                   placeholder="e.g. nok@example.com"
                   type="email"
+                  value={nokEmail}
+                  onChange={(e) => setNokEmail(e.target.value)}
+                  onBlur={markTouched("nokEmail")}
+                  maxLength={255}
+                  error={errorFor("nokEmail")}
                   leftIcon={<Mail className="size-4" />}
                 />
                 <Input
                   label="Employer"
                   placeholder="Employer Name"
+                  value={nokEmployer}
+                  onChange={(e) => setNokEmployer(e.target.value)}
+                  maxLength={100}
                   leftIcon={<BriefcaseBusiness className="size-4" />}
                 />
               </div>
@@ -1048,11 +1465,17 @@ const PatientRegistration = () => {
                       setEmergencyName(
                         [nokFirstName, nokOtherName, nokSurname]
                           .filter(Boolean)
-                          .join(" "),
+                          .join(" ")
                       );
                       setEmergencyRelationship(nokRelationship);
                       setEmergencyPhone(nokPhone);
                       setAlternateEmergencyPhone("");
+                      setTouched((p) => ({
+                        ...p,
+                        emergencyName: true,
+                        emergencyRelationship: true,
+                        emergencyPhone: true,
+                      }));
                     }
                   }}
                   className="size-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
@@ -1065,19 +1488,24 @@ const PatientRegistration = () => {
                   placeholder="Full name"
                   value={emergencyName}
                   onChange={(e) => setEmergencyName(e.target.value)}
+                  onBlur={markTouched("emergencyName")}
+                  required
+                  maxLength={120}
+                  error={errorFor("emergencyName")}
                   leftIcon={<ContactRound className="size-4" />}
                   containerClassName="sm:col-span-2"
                 />
                 <SelectField
                   id="emg-rel"
                   label="Relationship"
+                  required
                   value={emergencyRelationship}
                   onChange={(e) => setEmergencyRelationship(e.target.value)}
+                  onBlur={markTouched("emergencyRelationship")}
+                  error={errorFor("emergencyRelationship")}
                   leftIcon={Users}
                 >
                   <option value="">-- Relationship --</option>
-
-                  {/* Immediate Family */}
                   <option value="Father">Father</option>
                   <option value="Mother">Mother</option>
                   <option value="Guardian">Guardian</option>
@@ -1088,8 +1516,6 @@ const PatientRegistration = () => {
                   <option value="Daughter">Daughter</option>
                   <option value="Brother">Brother</option>
                   <option value="Sister">Sister</option>
-
-                  {/* Extended Family */}
                   <option value="Grandfather">Grandfather</option>
                   <option value="Grandmother">Grandmother</option>
                   <option value="Uncle">Uncle</option>
@@ -1097,8 +1523,6 @@ const PatientRegistration = () => {
                   <option value="Cousin">Cousin</option>
                   <option value="Nephew">Nephew</option>
                   <option value="Niece">Niece</option>
-
-                  {/* Other Relationships */}
                   <option value="Partner">Partner</option>
                   <option value="Fiancé">Fiancé</option>
                   <option value="Fiancée">Fiancée</option>
@@ -1109,13 +1533,9 @@ const PatientRegistration = () => {
                   <option value="Caregiver">Caregiver</option>
                   <option value="Social Worker">Social Worker</option>
                   <option value="Religious Leader">Religious Leader</option>
-
-                  {/* Emergency / Legal */}
                   <option value="Legal Representative">
                     Legal Representative
                   </option>
-
-                  {/* Other */}
                   <option value="Other">Other</option>
                 </SelectField>
                 <Input
@@ -1123,6 +1543,10 @@ const PatientRegistration = () => {
                   placeholder="e.g. 0712 345 678"
                   value={emergencyPhone}
                   onChange={(e) => setEmergencyPhone(e.target.value)}
+                  onBlur={markTouched("emergencyPhone")}
+                  required
+                  maxLength={15}
+                  error={errorFor("emergencyPhone")}
                   leftIcon={<Phone className="size-4" />}
                 />
                 <Input
@@ -1130,6 +1554,10 @@ const PatientRegistration = () => {
                   placeholder="Optional alternate phone number"
                   value={alternateEmergencyPhone}
                   onChange={(e) => setAlternateEmergencyPhone(e.target.value)}
+                  onBlur={markTouched("alternateEmergencyPhone")}
+                  maxLength={15}
+                  error={errorFor("alternateEmergencyPhone")}
+                  helperText="Optional"
                   leftIcon={<Phone className="size-4" />}
                   containerClassName="sm:col-span-2"
                 />
@@ -1138,7 +1566,6 @@ const PatientRegistration = () => {
           </div>
         ) : null}
 
-        {/* Administrative Details Tab */}
         {activeTab === "Administrative Details" ? (
           <>
             <div className="flex h-full flex-col justify-center sm:col-span-2 xl:col-span-2">
@@ -1152,16 +1579,27 @@ const PatientRegistration = () => {
                 Suspend patient
               </label>
             </div>
-            <CommentField id="administrative-comments" />
+            <TextareaField
+              id="administrative-comments"
+              label="Comments"
+              placeholder="Add relevant notes or special considerations"
+              className="sm:col-span-2 xl:col-span-2"
+              leftIcon={FileText}
+              value={adminComments}
+              onChange={(e) => setAdminComments(e.target.value)}
+              maxLength={1000}
+            />
           </>
         ) : null}
       </Section>
 
-      {/* Footer Action Buttons (visible only on Administrative Details tab) */}
-      {activeTab === "Administrative Details" ? (
-        <div className="sticky bottom-0 z-10 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur sm:-mx-6 sm:px-6">
+      {/* Footer Action Buttons */}
+      <div className="sticky bottom-0 z-10 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur sm:-mx-6 sm:px-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate-500">
+            Fields marked <span className="text-rose-600">*</span> are required.
+          </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            {/* Clear Details Button - Resets all form fields */}
             <button
               type="button"
               onClick={clearForm}
@@ -1171,7 +1609,6 @@ const PatientRegistration = () => {
               <RotateCcw className="size-4" />
               Clear Details
             </button>
-            {/* Register/Update Button - Shows "Register Patient" for new or "Update Patient" for existing */}
             <button
               type="submit"
               disabled={isSubmitting}
@@ -1181,12 +1618,12 @@ const PatientRegistration = () => {
               {isSubmitting
                 ? "Processing..."
                 : isEditingPatient
-                  ? "Update Patient"
-                  : "Register Patient"}
+                ? "Update Patient"
+                : "Register Patient"}
             </button>
           </div>
         </div>
-      ) : null}
+      </div>
     </form>
   );
 };

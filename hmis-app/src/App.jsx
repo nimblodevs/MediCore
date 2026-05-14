@@ -1,11 +1,13 @@
-import HMS from './HMS.jsx'
+import { Toaster } from "sonner";
+import HMS from "./HMS.jsx";
 
 const App = () => {
   return (
-    <div>
-        <HMS />
-    </div>
-  )
-}
+    <>
+      <HMS />
+      <Toaster richColors position="top-center" closeButton />
+    </>
+  );
+};
 
-export default App
+export default App;

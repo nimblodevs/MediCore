@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState } from "react";
 import {
   Bell,
   CalendarDays,
@@ -10,26 +10,26 @@ import {
   Search,
   ShieldCheck,
   UserRound,
-} from 'lucide-react'
-import Input from './ui/Input'
+} from "lucide-react";
+import Input from "./ui/Input";
 
 const sectionTitles = {
-  dashboard: 'Dashboard',
-  patients: 'Patient Registry',
-  'patient-registration': 'Patient Registration',
-  appointments: 'Appointments',
-  consultation: 'Consultation',
-  admissions: 'Admissions',
-  pharmacy: 'Pharmacy',
-  laboratory: 'Laboratory',
-  reports: 'Reports',
-}
+  dashboard: "Dashboard",
+  patients: "Patient Registry",
+  "patient-registration": "Patient Registration",
+  appointments: "Appointments",
+  consultation: "Consultation",
+  admissions: "Admissions",
+  pharmacy: "Pharmacy",
+  laboratory: "Laboratory",
+  reports: "Reports",
+};
 
-const Navbar = ({ activeSection = 'dashboard', onMenuClick }) => {
-  const [profileOpen, setProfileOpen] = useState(false)
-  const sectionTitle = sectionTitles[activeSection] ?? 'Dashboard'
+const Navbar = ({ activeSection = "dashboard", onMenuClick }) => {
+  const [profileOpen, setProfileOpen] = useState(false);
+  const sectionTitle = sectionTitles[activeSection] ?? "Dashboard";
   const iconButtonClasses =
-    'inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-cyan-500/25'
+    "inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-cyan-500/25";
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/85">
@@ -50,7 +50,9 @@ const Navbar = ({ activeSection = 'dashboard', onMenuClick }) => {
               Clinical workspace
             </span>
             <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:block" />
-            <span className="hidden text-slate-500 sm:inline">MediCore HMS</span>
+            <span className="hidden text-slate-500 sm:inline">
+              MediCore HMS
+            </span>
           </div>
           <h1 className="mt-1 truncate text-lg font-semibold text-slate-950 sm:text-xl">
             {sectionTitle}
@@ -132,18 +134,18 @@ const Navbar = ({ activeSection = 'dashboard', onMenuClick }) => {
                 </span>
                 <ChevronDown
                   className={[
-                    'hidden size-4 text-slate-400 transition-transform sm:block',
-                    profileOpen ? 'rotate-180' : '',
-                  ].join(' ')}
+                    "hidden size-4 text-slate-400 transition-transform sm:block",
+                    profileOpen ? "rotate-180" : "",
+                  ].join(" ")}
                 />
               </button>
 
               <div
                 role="menu"
                 className={[
-                  'absolute right-0 top-12 z-50 min-w-48 rounded-md border border-slate-200 bg-white p-1 shadow-lg outline-none',
-                  profileOpen ? 'block' : 'hidden',
-                ].join(' ')}
+                  "absolute right-0 top-12 z-50 min-w-48 rounded-md border border-slate-200 bg-white p-1 shadow-lg outline-none",
+                  profileOpen ? "block" : "hidden",
+                ].join(" ")}
               >
                 <button
                   type="button"
@@ -176,7 +178,7 @@ const Navbar = ({ activeSection = 'dashboard', onMenuClick }) => {
         </div>
       </div>
     </header>
-  )
-}
+  );
+};
 
-export default Navbar
+export default Navbar;
