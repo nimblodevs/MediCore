@@ -5,7 +5,7 @@
  *           field-level validation with friendly error messages.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -46,8 +46,7 @@ import {
 // ============================================
 
 /** Kenyan phone numbers: optional +254 / 0 prefix, then 7 or 1 + 8 digits. */
-const KE_PHONE_REGEX = (phone) =>
-  /^(\+?254|0)[17]\d{8}$/.test(phone.replace(/\s/g, ""));
+const KE_PHONE_REGEX = /^(\+?254|0)[17]\d{8}$/;
 /** Loose ID number: 4-20 alphanumeric chars (covers National ID, Passport, etc.). */
 const ID_NUMBER_REGEX = /^[A-Za-z0-9-]{4,20}$/;
 /** Names: letters, spaces, hyphens, apostrophes. */
@@ -56,15 +55,14 @@ const NAME_REGEX = /^[A-Za-z][A-Za-z\s'-]*$/;
 const friendlyPhone = z
   .string()
   .trim()
-  .regex(
-    KE_PHONE_REGEX,
-    "Enter a valid phone number (e.g. 0712 345 678 or +254712345678)"
-  );
+  .refine((v) => KE_PHONE_REGEX.test(v.replace(/\s/g, "")), {
+    message: "Enter a valid phone number (e.g. 0712 345 678 or +254712345678)",
+  });
 
 const optionalPhone = z
   .string()
   .trim()
-  .refine((v) => v === "" || KE_PHONE_REGEX.test(v), {
+  .refine((v) => v === "" || KE_PHONE_REGEX.test(v.replace(/\s/g, "")), {
     message: "Enter a valid phone number or leave blank",
   });
 
@@ -379,8 +377,8 @@ const PatientRegistration = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // --- Validation state ---
-  const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
+  const lastNotFoundUhidRef = useRef(null);
 
   // ============================================
   // FORM CONFIGURATION
@@ -410,25 +408,6 @@ const PatientRegistration = () => {
   // ============================================
   // COMPUTED VALUES
   // ============================================
-
-  const approximateAge = useMemo(() => {
-    if (!dateOfBirth) return "";
-    const birthDate = new Date(`${dateOfBirth}T00:00:00`);
-    if (Number.isNaN(birthDate.getTime())) return "";
-    const today = new Date();
-    let years = today.getFullYear() - birthDate.getFullYear();
-    let months = today.getMonth() - birthDate.getMonth();
-    if (today.getDate() < birthDate.getDate()) months -= 1;
-    if (months < 0) {
-      years -= 1;
-      months += 12;
-    }
-    years = Math.max(years, 0);
-    months = Math.max(months, 0);
-    return `${years} ${years === 1 ? "year" : "years"}, ${months} ${
-      months === 1 ? "month" : "months"
-    }`;
-  }, [dateOfBirth]);
 
   const ageGroup = useMemo(() => {
     if (!dateOfBirth) return "";
@@ -465,30 +444,54 @@ const PatientRegistration = () => {
   // VALIDATION HELPERS
   // ============================================
 
-  /** Build a snapshot of all validated values from current state. */
-  const getValues = () => ({
-    title,
-    surname,
-    firstName,
-    middleName,
-    gender,
-    dateOfBirth,
-    primaryPhone,
-    nationality,
-    documentNumber,
-    alternatePhone,
-    email,
-    county,
-    subCounty,
-    village,
-    physicalAddress,
-    nokPhone,
-    nokEmail,
-    emergencyName,
-    emergencyRelationship,
-    emergencyPhone,
-    alternateEmergencyPhone,
-  });
+  const values = useMemo(
+    () => ({
+      title,
+      surname,
+      firstName,
+      middleName,
+      gender,
+      dateOfBirth,
+      primaryPhone,
+      nationality,
+      documentNumber,
+      alternatePhone,
+      email,
+      county,
+      subCounty,
+      village,
+      physicalAddress,
+      nokPhone,
+      nokEmail,
+      emergencyName,
+      emergencyRelationship,
+      emergencyPhone,
+      alternateEmergencyPhone,
+    }),
+    [
+      title,
+      surname,
+      firstName,
+      middleName,
+      gender,
+      dateOfBirth,
+      primaryPhone,
+      nationality,
+      documentNumber,
+      alternatePhone,
+      email,
+      county,
+      subCounty,
+      village,
+      physicalAddress,
+      nokPhone,
+      nokEmail,
+      emergencyName,
+      emergencyRelationship,
+      emergencyPhone,
+      alternateEmergencyPhone,
+    ]
+  );
 
   /** Run zod and return a flat { field: message } map. */
   const runValidation = (values) => {
@@ -501,35 +504,7 @@ const PatientRegistration = () => {
     }
     return flat;
   };
-
-  /** Re-validate every time a value changes so visible error messages clear immediately. */
-  useEffect(() => {
-    const next = runValidation(getValues());
-    setErrors(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    title,
-    surname,
-    firstName,
-    middleName,
-    gender,
-    dateOfBirth,
-    primaryPhone,
-    nationality,
-    documentNumber,
-    alternatePhone,
-    email,
-    county,
-    subCounty,
-    village,
-    physicalAddress,
-    nokPhone,
-    nokEmail,
-    emergencyName,
-    emergencyRelationship,
-    emergencyPhone,
-    alternateEmergencyPhone,
-  ]);
+  const errors = useMemo(() => runValidation(values), [values]);
 
   /** Show an error message only if the user has touched the field or attempted submit. */
   const errorFor = (field) => (touched[field] ? errors[field] : undefined);
@@ -547,22 +522,14 @@ const PatientRegistration = () => {
   }, [searchTerm]);
 
   /** Reactive NOK → Emergency sync */
-  useEffect(() => {
-    if (!sameAsNok) return;
-    setEmergencyName(
-      [nokFirstName, nokOtherName, nokSurname].filter(Boolean).join(" ")
-    );
-    setEmergencyRelationship(nokRelationship);
-    setEmergencyPhone(nokPhone);
-    setAlternateEmergencyPhone("");
-  }, [
-    sameAsNok,
-    nokFirstName,
-    nokOtherName,
-    nokSurname,
-    nokRelationship,
-    nokPhone,
-  ]);
+  const syncedEmergencyName = sameAsNok
+    ? [nokFirstName, nokOtherName, nokSurname].filter(Boolean).join(" ")
+    : emergencyName;
+  const syncedEmergencyRelationship = sameAsNok
+    ? nokRelationship
+    : emergencyRelationship;
+  const syncedEmergencyPhone = sameAsNok ? nokPhone : emergencyPhone;
+  const syncedAlternateEmergencyPhone = sameAsNok ? "" : alternateEmergencyPhone;
 
   // ─────────────────────────────────────────────────────────
   // API
@@ -595,13 +562,13 @@ const PatientRegistration = () => {
         toast.success("Patient found", {
           description: `${patient.firstName} ${patient.lastName} loaded successfully.`,
         });
-        lastNotFoundUhid.current = null;
+        lastNotFoundUhidRef.current = null;
       } else {
-        if (lastNotFoundUhid.current !== uihdNo) {
+        if (lastNotFoundUhidRef.current !== uihdNo) {
           toast.warning("No patient found", {
             description: `No record matches UHID "${uihdNo}". You may register a new patient.`,
           });
-          lastNotFoundUhid.current = uihdNo;
+          lastNotFoundUhidRef.current = uihdNo;
         }
       }
     },
@@ -630,7 +597,7 @@ const PatientRegistration = () => {
     setPrimaryPhone(patient.phoneNumber);
     setShowSearchResults(false);
     setIsEditingPatient(true);
-    setFieldErrors({});
+    setTouched({});
   };
 
   const clearForm = () => {
@@ -640,7 +607,7 @@ const PatientRegistration = () => {
     setMiddleName("");
     setDateOfBirth("");
     setPrimaryPhone("");
-    setIdDocumentNumber("");
+    setDocumentNumber("");
     setSearchTerm("");
     setNationality("");
     setIdType("National ID");
@@ -659,24 +626,13 @@ const PatientRegistration = () => {
     setAlternateEmergencyPhone("");
     setSameAsNok(false);
     setIsEditingPatient(false);
-    setFieldErrors({});
-    lastNotFoundUhid.current = null;
-  };
-
-  /** Clear a single field error as soon as the user starts correcting it */
-  const clearFieldError = (field) => {
-    setFieldErrors((prev) => {
-      if (!prev[field]) return prev;
-      const next = { ...prev };
-      delete next[field];
-      return next;
-    });
+    setTouched({});
+    lastNotFoundUhidRef.current = null;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const values = getValues();
     const validationErrors = runValidation(values);
 
     if (Object.keys(validationErrors).length > 0) {
@@ -686,7 +642,6 @@ const PatientRegistration = () => {
         return acc;
       }, {});
       setTouched((prev) => ({ ...prev, ...allTouched }));
-      setErrors(validationErrors);
 
       // Jump to the first tab containing an error.
       const firstField = Object.keys(validationErrors)[0];
@@ -744,10 +699,10 @@ const PatientRegistration = () => {
           employer: nokEmployer,
         },
         emergency: {
-          name: emergencyName,
-          relationship: emergencyRelationship,
-          phone: emergencyPhone,
-          alternatePhone: alternateEmergencyPhone,
+          name: syncedEmergencyName,
+          relationship: syncedEmergencyRelationship,
+          phone: syncedEmergencyPhone,
+          alternatePhone: syncedAlternateEmergencyPhone,
         },
         isSuspended,
         comments: adminComments,
