@@ -25,9 +25,34 @@ const navItems = [
     badge: 12,
     children: [
       {
+        key: "patient-list",
+        label: "Patient Registry",
+        icon: FileText,
+      },
+      {
         key: "patient-registration",
         label: "Registration",
         icon: ClipboardPlus,
+      },
+      {
+        key: "patient-report-summary",
+        label: "Patient Reports — Summary",
+        icon: FileText,
+      },
+      {
+        key: "patient-report-visits",
+        label: "Patient Reports — Visits",
+        icon: CalendarDays,
+      },
+      {
+        key: "patient-report-lab",
+        label: "Patient Reports — Laboratory",
+        icon: FileText,
+      },
+      {
+        key: "patient-report-billing",
+        label: "Patient Reports — Billing",
+        icon: FileText,
       },
     ],
   },

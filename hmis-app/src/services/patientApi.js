@@ -32,3 +32,8 @@ export const getPatientByUhid = async (uhid) => {
     ) ?? null
   );
 };
+
+export const getAllPatients = async () => {
+  await sleep(NETWORK_DELAY_MS);
+  return mockPatients;
+};

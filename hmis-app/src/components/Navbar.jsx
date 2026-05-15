@@ -17,12 +17,18 @@ const sectionTitles = {
   dashboard: "Dashboard",
   patients: "Patient Registry",
   "patient-registration": "Patient Registration",
+  "patient-list": "Patient Registry",
+  "patient-report-summary": "Patient Reports — Summary",
+  "patient-report-visits": "Patient Reports — Visits",
+  "patient-report-lab": "Patient Reports — Laboratory",
+  "patient-report-billing": "Patient Reports — Billing",
   appointments: "Appointments",
   consultation: "Consultation",
   admissions: "Admissions",
   pharmacy: "Pharmacy",
   laboratory: "Laboratory",
   reports: "Reports",
+  
 };
 
 const Navbar = ({ activeSection = "dashboard", onMenuClick }) => {
